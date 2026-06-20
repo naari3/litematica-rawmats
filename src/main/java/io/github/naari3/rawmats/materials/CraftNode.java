@@ -32,6 +32,8 @@ public class CraftNode
     @Nullable public TagKey<Item> choiceKey;
     /** タグ材料の候補一覧 (選択肢)。具体材料由来なら null。 */
     @Nullable public List<Holder<Item>> choices;
+    /** 親アイテム (部分在庫スケーリングの再 build で prevItem = ループ検出に使う)。root なら null。 */
+    @Nullable public Holder<Item> parentItem;
 
     public CraftNode(Holder<Item> item, int count, int depth)
     {
@@ -104,11 +106,14 @@ public class CraftNode
                     CraftNode cn = fromBase(effChild, depth + 1, overrides, craftingOnly);
                     cn.choiceKey = key;
                     cn.choices = ((IMixinIngredient) (Object) tagIng).malilib_getEntries().stream().toList();
+                    cn.parentItem = base.getInput();
                     node.children.add(cn);
                 }
                 else
                 {
-                    node.children.add(fromBase(child, depth + 1, overrides, craftingOnly));
+                    CraftNode cn = fromBase(child, depth + 1, overrides, craftingOnly);
+                    cn.parentItem = base.getInput();
+                    node.children.add(cn);
                 }
             }
         }

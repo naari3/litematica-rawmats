@@ -203,7 +203,17 @@ public class CraftTree
 
         if (!covered && this.expanded.contains(it) && n.isExpandable())
         {
-            for (CraftNode c : n.children)
+            List<CraftNode> children = n.children;
+
+            if (net < n.count)
+            {
+                // 部分在庫: 不足分 net だけを作るサブツリーを再構築し、レシピ収量 (1 log -> 4 planks 等) を
+                // build() の正確な計算で反映する。在庫ゼロ (net == n.count) のときは baked をそのまま使う。
+                MaterialListJsonBase rebuilt = new MaterialListJsonBase(n.item, net, n.parentItem, this.craftingOnly);
+                children = CraftNode.fromBase(rebuilt, n.depth, this.materialOverride, this.craftingOnly).children;
+            }
+
+            for (CraftNode c : children)
             {
                 this.walk(c, budget, needMap, choosable);
             }
