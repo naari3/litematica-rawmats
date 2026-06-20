@@ -629,6 +629,42 @@ RawMaterialList.reCreateMaterialList()
 
 ---
 
+## 2026-06-21 ① 在庫引き当てをグローバル集計に改修・実機 OK
+
+### 変更前 (DFS 先着) の問題
+
+- root 順 DFS で各ノードがその場で在庫 budget を先取り → 部分在庫が展開可能な中間素材を賄うとき
+  「どの枝が covered/展開されるか」が配置依存。
+- 部分在庫ノードを出現ごとに再 build → 収量>1 レシピ (planks=4, stick=4 等) で切り上げが出現数だけ
+  重なり過大計上しうる。
+- (フラットな base 葉の合計値は budget 持ち越しで元々正しかった。)
+
+### 変更後 (型ごとグローバル集計) — `CraftTree.getDisplayRows` 全面書き換え
+
+1. 展開対象 (expanded ∩ expandable) の型を **型 DAG (`typeChildren`) の親→子 topo 順** で処理
+   (`topoExpandedTypes` / `topoVisit`)。
+2. 各型の総需要を一度だけ集計 (`pendingGross`、`addGross` で展開対象は pending・他は frontier に振り分け)。
+3. 型ごとに在庫を1回だけネット (`toCraft = max(0, 総需要 − 在庫)`)。完全充足は covered (frontier 行・need 0)。
+4. 不足分 `toCraft` を**一度だけ分解** → レシピ収量の切り上げが総量に対して1回。
+5. frontier を在庫ネットして行に。fold/展開フラグ/タグ選択 (choosable)/sort/hide/ignore は不変。
+
+旧 `walk` は削除。型 DAG は `indexNode` で `typeChildren` を構築。
+
+### 効果 (実機: 回帰なし・数字 OK 確認)
+
+- 在庫配分が DFS 到達順に非依存 (配置を変えても結果が一致)。
+- 中間素材の出現別切り上げ過大が解消。
+
+### 残課題: ⑤ 性能
+
+- 実機で「変わらず重い」。特に **Expand all (= logStructure) で ≈1 秒**。
+  - 主因候補: (a) デバッグログの leaf ごとの `getDisplayEntryFromRecipeBook` (recipe book 全走査) が leaf 数分、
+    (b) `getDisplayRows` が展開対象ごとに毎回 `new MaterialListJsonBase` で分解し直す (recipe book 走査)、
+    (c) GUI を開くたびの eager 全 build。
+  - 次は ⑤ に着手予定。
+
+---
+
 ## 参照 (ローカル clone)
 
 - `C:/Users/naari/src/github.com/sakura-ryoko/litematica` (branch 26.2)

@@ -36,9 +36,10 @@ import io.github.naari3.rawmats.Reference;
  *
  * - root = schematic 直材。各々を {@link MaterialListJsonBase} で再帰展開した baked ツリー ({@link CraftNode}) を保持。
  * - 表示状態 = 「展開したアイテム種別」の集合ほか ({@link CraftTreeState})。source から分離して保持。
- * - 表示 ({@link #getDisplayRows}) = baked ツリーを辿り、展開対象は子へ in-place 置換、
- *   それ以外は frontier 葉として同一アイテムで合算 → フラットなリスト ({@link MatRow})。
- * - 在庫ネット: walk 中に在庫を引き当て、完全充足ノードは展開停止 (= 子を出さない)。
+ * - 表示 ({@link #getDisplayRows}) = 展開対象の型を親→子 topo 順で処理し、各型の総需要を1回だけ
+ *   在庫ネット + 分解 → frontier (集める単位) を同一アイテムで合算したフラットリスト ({@link MatRow})。
+ * - 在庫ネットは型ごとにグローバル (DFS 到達順に非依存)。中間素材のバッチ切り上げは総量に対して1回
+ *   (出現ごとの過大計上を回避)。完全充足の展開対象は展開停止 (covered)。
  * - 畳み (collapse): frontier 素材 I は「I を直接の子に持つ展開中の親 P」由来。collapse(P) で P を畳み戻す。
  *   I を畳む候補 = {@link #getCollapseCandidates}。
  */
@@ -48,6 +49,8 @@ public class CraftTree
     private final Set<Item> expandableTypes = new HashSet<>();
     /** 子アイテム種別 -> それを直接の子に持つ親アイテム種別の集合 (畳み候補の逆引き)。 */
     private final Map<Item, Set<Item>> childToParents = new HashMap<>();
+    /** 親アイテム種別 -> その直接の子アイテム種別の集合 (展開対象を topo 順に処理するための型 DAG)。 */
+    private final Map<Item, Set<Item>> typeChildren = new HashMap<>();
     private final Object2IntOpenHashMap<Item> available = new Object2IntOpenHashMap<>();
     /** セッション内ビュー状態 (展開集合 / タグ置換 / 倍率)。source キーごとに {@link CraftTreeStore} で復元される。 */
     private final CraftTreeState state;
@@ -72,6 +75,7 @@ public class CraftTree
         this.roots.clear();
         this.expandableTypes.clear();
         this.childToParents.clear();
+        this.typeChildren.clear();
 
         int mult = Math.max(1, this.state.multiplier);
 
@@ -127,11 +131,15 @@ public class CraftTree
     {
         if (n.isExpandable())
         {
-            this.expandableTypes.add(n.item.value());
+            Item parent = n.item.value();
+            this.expandableTypes.add(parent);
+            Set<Item> kids = this.typeChildren.computeIfAbsent(parent, k -> new LinkedHashSet<>());
 
             for (CraftNode c : n.children)
             {
-                this.childToParents.computeIfAbsent(c.item.value(), k -> new LinkedHashSet<>()).add(n.item.value());
+                Item child = c.item.value();
+                this.childToParents.computeIfAbsent(child, k -> new LinkedHashSet<>()).add(parent);
+                kids.add(child);
             }
         }
         for (CraftNode c : n.children)
@@ -276,29 +284,82 @@ public class CraftTree
         return false;
     }
 
-    /** 現在の展開状態 + 在庫ネットで、フラットな表示行を計算する。 */
+    /**
+     * 現在の展開状態 + 在庫ネットで、フラットな表示行を計算する。
+     *
+     * グローバル集計方式: 展開対象の型を親→子の topo 順で処理し、各型の「総需要」を一度だけ在庫ネットして
+     * 不足分を一度だけ分解する。これにより
+     *  - 在庫引き当ては型ごとにグローバル (DFS 到達順に依存しない)、
+     *  - 中間素材のバッチ切り上げが出現ごとでなく総量に対して1回だけ (過大計上を回避)。
+     */
     public List<MatRow> getDisplayRows()
     {
-        Object2IntOpenHashMap<Item> budget = new Object2IntOpenHashMap<>(this.available);
-        LinkedHashMap<Item, int[]> needMap = new LinkedHashMap<>();
+        Object2IntOpenHashMap<Item> stock = new Object2IntOpenHashMap<>(this.available);
+        // 展開対象 (expanded ∩ expandable) の型 -> まだ分解していない総需要、と代表ノード (分解時の parent/recipe 用)。
+        Map<Item, Long> pendingGross = new HashMap<>();
+        Map<Item, CraftNode> repNode = new HashMap<>();
+        // frontier (集める単位) の型 -> 総需要、と choosable 代表ノード。
+        LinkedHashMap<Item, Long> frontierGross = new LinkedHashMap<>();
         Map<Item, CraftNode> choosable = new HashMap<>();
 
+        // seed: schematic 直材。
         for (CraftNode r : this.roots)
         {
-            this.walk(r, budget, needMap, choosable);
+            this.addGross(r, r.count, pendingGross, repNode, frontierGross, choosable);
         }
 
+        // 展開対象を親→子の順で処理。各型の総需要を1回だけ在庫ネット + 分解する。
+        for (Item x : this.topoExpandedTypes())
+        {
+            Long g = pendingGross.get(x);
+
+            if (g == null || g <= 0)
+            {
+                continue;
+            }
+
+            long gross = g;
+            int have = stock.getInt(x);
+            long toCraft = Math.max(0L, gross - have);
+            CraftNode rep = repNode.get(x);
+
+            if (toCraft <= 0 || rep == null)
+            {
+                // 完全充足 → 展開停止。covered な frontier 行として出す (緑「0 (在庫)」)。
+                frontierGross.merge(x, gross, Long::sum);
+
+                if (rep != null && rep.isChoosable())
+                {
+                    choosable.putIfAbsent(x, rep);
+                }
+                continue;
+            }
+
+            stock.addTo(x, -(int) Math.min(have, gross)); // 在庫を消費
+            // 不足分 toCraft を一度だけ分解 (レシピ収量の切り上げが総量に対して1回)。
+            MaterialListJsonBase rebuilt = new MaterialListJsonBase(rep.item, (int) toCraft, rep.parentItem, this.craftingOnly);
+            CraftNode decomposed = CraftNode.fromBase(rebuilt, rep.depth, this.state.materialOverride, this.craftingOnly);
+
+            for (CraftNode c : decomposed.children)
+            {
+                this.addGross(c, c.count, pendingGross, repNode, frontierGross, choosable);
+            }
+        }
+
+        // frontier を在庫ネットして行に。
         List<MatRow> rows = new ArrayList<>();
-        for (Map.Entry<Item, int[]> en : needMap.entrySet())
+        for (Map.Entry<Item, Long> en : frontierGross.entrySet())
         {
             Item it = en.getKey();
-            int net = en.getValue()[0];
-            int gross = en.getValue()[1];
 
             if (this.state.ignored.contains(it))
             {
                 continue;
             }
+
+            int have = this.available.getInt(it);
+            int gross = (int) Math.min(Integer.MAX_VALUE, en.getValue());
+            int net = (int) Math.max(0L, en.getValue() - have);
 
             if (this.state.hideAvailable && net <= 0)
             {
@@ -309,12 +370,87 @@ public class CraftTree
             boolean expandable = this.expandableTypes.contains(it) && !this.state.expanded.contains(it);
             boolean foldable = this.hasCollapseCandidate(it);
             CraftNode cn = choosable.get(it);
-            rows.add(new MatRow(holder, gross, net, this.available.getInt(it), expandable, foldable,
+            rows.add(new MatRow(holder, gross, net, have, expandable, foldable,
                     cn != null, cn != null ? cn.choiceKey : null, cn != null ? cn.choices : null));
         }
 
         this.sortRows(rows);
         return rows;
+    }
+
+    /** 需要 qty を、展開対象なら pending に、そうでなければ frontier に積む。 */
+    private void addGross(CraftNode node, long qty,
+            Map<Item, Long> pendingGross, Map<Item, CraftNode> repNode,
+            Map<Item, Long> frontierGross, Map<Item, CraftNode> choosable)
+    {
+        Item it = node.item.value();
+
+        if (this.state.expanded.contains(it) && this.expandableTypes.contains(it))
+        {
+            pendingGross.merge(it, qty, Long::sum);
+            repNode.putIfAbsent(it, node);
+        }
+        else
+        {
+            frontierGross.merge(it, qty, Long::sum);
+
+            if (node.isChoosable())
+            {
+                choosable.putIfAbsent(it, node);
+            }
+        }
+    }
+
+    /** 展開対象 (expanded ∩ expandable) の型を、型 DAG ({@link #typeChildren}) の親→子 topo 順で返す。 */
+    private List<Item> topoExpandedTypes()
+    {
+        Set<Item> nodes = new LinkedHashSet<>();
+
+        for (Item it : this.state.expanded)
+        {
+            if (this.expandableTypes.contains(it))
+            {
+                nodes.add(it);
+            }
+        }
+
+        List<Item> order = new ArrayList<>();
+        Set<Item> visited = new HashSet<>();
+        Set<Item> inStack = new HashSet<>();
+
+        for (Item it : nodes)
+        {
+            this.topoVisit(it, nodes, visited, inStack, order);
+        }
+
+        java.util.Collections.reverse(order); // post-order (子先) を反転して親先に
+        return order;
+    }
+
+    private void topoVisit(Item x, Set<Item> nodes, Set<Item> visited, Set<Item> inStack, List<Item> order)
+    {
+        if (visited.contains(x) || inStack.contains(x))
+        {
+            return; // 訪問済み / 循環 (型 DAG 想定だが念のためガード)
+        }
+
+        inStack.add(x);
+        Set<Item> kids = this.typeChildren.get(x);
+
+        if (kids != null)
+        {
+            for (Item y : kids)
+            {
+                if (nodes.contains(y))
+                {
+                    this.topoVisit(y, nodes, visited, inStack, order);
+                }
+            }
+        }
+
+        inStack.remove(x);
+        visited.add(x);
+        order.add(x);
     }
 
     private void sortRows(List<MatRow> rows)
@@ -334,43 +470,5 @@ public class CraftTree
         }
 
         rows.sort(cmp);
-    }
-
-    private void walk(CraftNode n, Object2IntOpenHashMap<Item> budget, Map<Item, int[]> needMap, Map<Item, CraftNode> choosable)
-    {
-        Item it = n.item.value();
-        int alloc = Math.min(n.count, budget.getInt(it));
-        budget.addTo(it, -alloc);
-        int net = n.count - alloc;
-        boolean covered = net == 0;
-
-        if (!covered && this.state.expanded.contains(it) && n.isExpandable())
-        {
-            List<CraftNode> children = n.children;
-
-            if (net < n.count)
-            {
-                // 部分在庫: 不足分 net だけを作るサブツリーを再構築し、レシピ収量 (1 log -> 4 planks 等) を
-                // build() の正確な計算で反映する。在庫ゼロ (net == n.count) のときは baked をそのまま使う。
-                MaterialListJsonBase rebuilt = new MaterialListJsonBase(n.item, net, n.parentItem, this.craftingOnly);
-                children = CraftNode.fromBase(rebuilt, n.depth, this.state.materialOverride, this.craftingOnly).children;
-            }
-
-            for (CraftNode c : children)
-            {
-                this.walk(c, budget, needMap, choosable);
-            }
-        }
-        else
-        {
-            int[] acc = needMap.computeIfAbsent(it, k -> new int[2]);
-            acc[0] += net;        // missing (在庫差引後)
-            acc[1] += n.count;    // total (gross)
-
-            if (n.isChoosable())
-            {
-                choosable.putIfAbsent(it, n);
-            }
-        }
     }
 }
