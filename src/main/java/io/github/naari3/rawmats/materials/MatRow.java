@@ -12,9 +12,11 @@ import net.minecraft.world.item.Item;
 public class MatRow
 {
     public final Holder<Item> item;
-    /** まだ集める必要がある数 (在庫差引後)。0 = 在庫で充足。 */
+    /** 必要総数 (在庫差引前の gross)。本家の Total 列に相当。 */
+    public final int total;
+    /** まだ集める必要がある数 (在庫差引後)。0 = 在庫で充足。本家の Missing 列に相当。 */
     public final int need;
-    /** 在庫数 (参考表示)。 */
+    /** 在庫数 (参考表示)。本家の Available 列に相当。 */
     public final int have;
     /** さらに展開 (材料へ分解) できるか。 */
     public final boolean expandable;
@@ -27,10 +29,11 @@ public class MatRow
     /** 置換候補一覧。choosable のときのみ非 null。 */
     @Nullable public final List<Holder<Item>> choices;
 
-    public MatRow(Holder<Item> item, int need, int have, boolean expandable, boolean foldable,
+    public MatRow(Holder<Item> item, int total, int need, int have, boolean expandable, boolean foldable,
             boolean choosable, @Nullable TagKey<Item> choiceKey, @Nullable List<Holder<Item>> choices)
     {
         this.item = item;
+        this.total = total;
         this.need = need;
         this.have = have;
         this.expandable = expandable;

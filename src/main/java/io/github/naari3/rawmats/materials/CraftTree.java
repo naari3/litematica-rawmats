@@ -57,6 +57,13 @@ public class CraftTree
     /** crafting と stonecutter が両立する場合に crafting を優先。 */
     private boolean craftingOnly = true;
 
+    /** 表示の並べ替え列 (本家 GuiMaterialList と同じ4列)。GUI が開いている間のみ保持 (永続しない)。 */
+    public enum SortColumn { NAME, TOTAL, MISSING, AVAILABLE }
+    private SortColumn sortColumn = SortColumn.TOTAL;
+    private boolean sortReverse = false;
+    /** missing のみ表示 (need <= 0 の充足行を隠す)。 */
+    private boolean hideAvailable = false;
+
     public CraftTree(MaterialListBase source, CraftTreeState state)
     {
         this.state = state;
@@ -214,6 +221,25 @@ public class CraftTree
     public void expandAll()       { this.state.expanded.addAll(this.expandableTypes); }
     public void collapseAll()     { this.state.expanded.clear(); }
 
+    public SortColumn getSortColumn()   { return this.sortColumn; }
+    public boolean getSortInReverse()   { return this.sortReverse; }
+    public boolean getHideAvailable()   { return this.hideAvailable; }
+    public void toggleHideAvailable()   { this.hideAvailable = !this.hideAvailable; }
+
+    /** 列ヘッダクリック: 同じ列なら昇順/降順をトグル、別列なら切替 (本家 setSortCriteria に倣う)。 */
+    public void setSortColumn(SortColumn c)
+    {
+        if (this.sortColumn == c)
+        {
+            this.sortReverse = !this.sortReverse;
+        }
+        else
+        {
+            this.sortColumn = c;
+            this.sortReverse = c == SortColumn.NAME;
+        }
+    }
+
     /** frontier 素材 child を畳み戻せる「展開中の親」候補 (= child を直接の子に持つ、展開中の親種別)。 */
     public List<Item> getCollapseCandidates(Item child)
     {
@@ -266,14 +292,43 @@ public class CraftTree
         for (Map.Entry<Item, int[]> en : needMap.entrySet())
         {
             Item it = en.getKey();
+            int net = en.getValue()[0];
+            int gross = en.getValue()[1];
+
+            if (this.hideAvailable && net <= 0)
+            {
+                continue;
+            }
+
             Holder<Item> holder = BuiltInRegistries.ITEM.wrapAsHolder(it);
             boolean expandable = this.expandableTypes.contains(it) && !this.state.expanded.contains(it);
             boolean foldable = this.hasCollapseCandidate(it);
             CraftNode cn = choosable.get(it);
-            rows.add(new MatRow(holder, en.getValue()[0], this.available.getInt(it), expandable, foldable,
+            rows.add(new MatRow(holder, gross, net, this.available.getInt(it), expandable, foldable,
                     cn != null, cn != null ? cn.choiceKey : null, cn != null ? cn.choices : null));
         }
+
+        this.sortRows(rows);
         return rows;
+    }
+
+    private void sortRows(List<MatRow> rows)
+    {
+        java.util.Comparator<MatRow> cmp = switch (this.sortColumn)
+        {
+            case NAME      -> java.util.Comparator.comparing(r -> new ItemStack(r.item).getHoverName().getString(),
+                                    String.CASE_INSENSITIVE_ORDER);
+            case TOTAL     -> java.util.Comparator.comparingInt(r -> r.total);
+            case MISSING   -> java.util.Comparator.comparingInt(r -> r.need);
+            case AVAILABLE -> java.util.Comparator.comparingInt(r -> r.have);
+        };
+
+        if (this.sortReverse)
+        {
+            cmp = cmp.reversed();
+        }
+
+        rows.sort(cmp);
     }
 
     private void walk(CraftNode n, Object2IntOpenHashMap<Item> budget, Map<Item, int[]> needMap, Map<Item, CraftNode> choosable)
@@ -303,7 +358,9 @@ public class CraftTree
         }
         else
         {
-            needMap.computeIfAbsent(it, k -> new int[1])[0] += net;
+            int[] acc = needMap.computeIfAbsent(it, k -> new int[2]);
+            acc[0] += net;        // missing (在庫差引後)
+            acc[1] += n.count;    // total (gross)
 
             if (n.isChoosable())
             {

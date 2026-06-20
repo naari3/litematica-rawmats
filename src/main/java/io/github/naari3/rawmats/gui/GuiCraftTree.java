@@ -18,6 +18,7 @@ import fi.dy.masa.malilib.gui.GuiTextFieldInteger;
 import fi.dy.masa.malilib.gui.Message.MessageType;
 import fi.dy.masa.malilib.gui.button.ButtonBase;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
+import fi.dy.masa.malilib.gui.button.ButtonOnOff;
 import fi.dy.masa.malilib.gui.button.IButtonActionListener;
 import fi.dy.masa.malilib.gui.interfaces.ITextFieldListener;
 import fi.dy.masa.malilib.gui.wrappers.TextFieldType;
@@ -184,7 +185,7 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
 
         x += this.addButton(x, y, ButtonType.COLLAPSE_ALL) + gap;
         x += this.addButton(x, y, ButtonType.EXPAND_ALL) + gap;
-        x += this.addButton(x, y, ButtonType.EXPORT) + gap;
+        x += this.addToggle(x, y, ButtonType.HIDE_AVAILABLE, this.tree.getHideAvailable()) + gap;
 
         // 本家 GuiMaterialList に寄せて右上に倍率入力を置く。
         String label = StringUtils.translate("rawmats.gui.label.multiplier");
@@ -194,11 +195,44 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         GuiTextFieldInteger tf = new GuiTextFieldInteger(this.getScreenWidth() - 52, y + 2, 40, 16, this.font);
         tf.setValueWrapper(String.valueOf(this.tree.getMultiplier()));
         this.addTextField(tf, new MultiplierListener(this), TextFieldType.STRING);
+
+        // 下部: 書き出しボタン + 集計情報 (本家 GuiMaterialList の下部レイアウトに寄せる)。
+        int by = this.getScreenHeight() - 26;
+        int bx = 12;
+        bx += this.addButton(bx, by, ButtonType.EXPORT) + gap + 6;
+        this.addSummaryLabel(bx, by + 6);
+    }
+
+    /** 下部に「種類 / 必要数 / 完了率」の集計情報を出す。 */
+    private void addSummaryLabel(int x, int y)
+    {
+        List<MatRow> rows = this.tree.getDisplayRows();
+        int types = rows.size();
+        long need = 0;
+        long total = 0;
+
+        for (MatRow r : rows)
+        {
+            need += r.need;
+            total += r.total;
+        }
+
+        double donePct = total > 0 ? (double) (total - need) / (double) total * 100.0 : 100.0;
+        String summary = StringUtils.translate("rawmats.gui.label.summary",
+                types, need, String.format("%.1f%%", donePct));
+        this.addLabel(x, y, this.getStringWidth(summary), 12, 0xFFFFFFFF, summary);
     }
 
     private int addButton(int x, int y, ButtonType type)
     {
         ButtonGeneric button = new ButtonGeneric(x, y, -1, 20, StringUtils.translate(type.key));
+        this.addButton(button, new Listener(type, this));
+        return button.getWidth();
+    }
+
+    private int addToggle(int x, int y, ButtonType type, boolean isOn)
+    {
+        ButtonOnOff button = new ButtonOnOff(x, y, -1, false, type.key, isOn);
         this.addButton(button, new Listener(type, this));
         return button.getWidth();
     }
@@ -253,9 +287,10 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
 
     private enum ButtonType
     {
-        COLLAPSE_ALL ("rawmats.gui.button.collapse_all"),
-        EXPAND_ALL   ("rawmats.gui.button.expand_all"),
-        EXPORT       ("rawmats.gui.button.export");
+        COLLAPSE_ALL   ("rawmats.gui.button.collapse_all"),
+        EXPAND_ALL     ("rawmats.gui.button.expand_all"),
+        EXPORT         ("rawmats.gui.button.export"),
+        HIDE_AVAILABLE ("rawmats.gui.button.hide_available");
 
         private final String key;
 
@@ -298,9 +333,10 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         {
             switch (this.type)
             {
-                case EXPAND_ALL   -> { this.parent.tree.expandAll(); this.parent.tree.logStructure(); }
-                case COLLAPSE_ALL -> this.parent.tree.collapseAll();
-                case EXPORT       -> { this.parent.exportToFile(); return; }
+                case EXPAND_ALL     -> { this.parent.tree.expandAll(); this.parent.tree.logStructure(); }
+                case COLLAPSE_ALL   -> this.parent.tree.collapseAll();
+                case EXPORT         -> { this.parent.exportToFile(); return; }
+                case HIDE_AVAILABLE -> this.parent.tree.toggleHideAvailable();
             }
             this.parent.reInit();
         }
