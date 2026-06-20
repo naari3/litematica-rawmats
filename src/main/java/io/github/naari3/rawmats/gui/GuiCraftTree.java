@@ -1,8 +1,12 @@
 package io.github.naari3.rawmats.gui;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.Nullable;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.Holder;
@@ -10,13 +14,21 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
 
 import fi.dy.masa.malilib.gui.GuiListBase;
+import fi.dy.masa.malilib.gui.GuiTextFieldInteger;
+import fi.dy.masa.malilib.gui.Message.MessageType;
 import fi.dy.masa.malilib.gui.button.ButtonBase;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
 import fi.dy.masa.malilib.gui.button.IButtonActionListener;
+import fi.dy.masa.malilib.gui.interfaces.ITextFieldListener;
+import fi.dy.masa.malilib.gui.wrappers.TextFieldType;
 import fi.dy.masa.malilib.render.GuiContext;
+import fi.dy.masa.malilib.util.FileUtils;
 import fi.dy.masa.malilib.util.KeyCodes;
 import fi.dy.masa.malilib.util.StringUtils;
+import fi.dy.masa.malilib.util.time.TimeFormat;
 
+import io.github.naari3.rawmats.Reference;
+import io.github.naari3.rawmats.materials.CraftListExport;
 import io.github.naari3.rawmats.materials.CraftTree;
 import io.github.naari3.rawmats.materials.MatRow;
 
@@ -120,6 +132,34 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         this.reInit();
     }
 
+    /** 現在の買い物リストを Litematica config フォルダ配下にプレーンテキストで書き出し、チャットに開けるリンクを出す。 */
+    public void exportToFile()
+    {
+        Path dir = FileUtils.getConfigDirectory().resolve(Reference.MOD_ID);
+        Path file = dir.resolve("raw_material_list_" + TimeFormat.REGULAR.formatNow() + ".txt");
+
+        try
+        {
+            Files.createDirectories(dir);
+            Files.writeString(file, CraftListExport.render(this.tree));
+        }
+        catch (IOException e)
+        {
+            this.addMessage(MessageType.ERROR, "rawmats.message.export_failed", e.getMessage());
+            return;
+        }
+
+        String key = "rawmats.message.exported";
+        this.addMessage(MessageType.SUCCESS, key, file.getFileName().toString());
+
+        Minecraft mc = Minecraft.getInstance();
+
+        if (mc.player != null)
+        {
+            StringUtils.sendOpenFileChatMessage(mc.player, key, file);
+        }
+    }
+
     @Override
     protected int getBrowserWidth()
     {
@@ -144,6 +184,16 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
 
         x += this.addButton(x, y, ButtonType.COLLAPSE_ALL) + gap;
         x += this.addButton(x, y, ButtonType.EXPAND_ALL) + gap;
+        x += this.addButton(x, y, ButtonType.EXPORT) + gap;
+
+        // 本家 GuiMaterialList に寄せて右上に倍率入力を置く。
+        String label = StringUtils.translate("rawmats.gui.label.multiplier");
+        int w = this.getStringWidth(label);
+        this.addLabel(this.getScreenWidth() - w - 56, y + 5, w, 12, 0xFFFFFFFF, label);
+
+        GuiTextFieldInteger tf = new GuiTextFieldInteger(this.getScreenWidth() - 52, y + 2, 40, 16, this.font);
+        tf.setValueWrapper(String.valueOf(this.tree.getMultiplier()));
+        this.addTextField(tf, new MultiplierListener(this), TextFieldType.STRING);
     }
 
     private int addButton(int x, int y, ButtonType type)
@@ -204,13 +254,40 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
     private enum ButtonType
     {
         COLLAPSE_ALL ("rawmats.gui.button.collapse_all"),
-        EXPAND_ALL   ("rawmats.gui.button.expand_all");
+        EXPAND_ALL   ("rawmats.gui.button.expand_all"),
+        EXPORT       ("rawmats.gui.button.export");
 
         private final String key;
 
         ButtonType(String key)
         {
             this.key = key;
+        }
+    }
+
+    private record MultiplierListener(GuiCraftTree gui) implements ITextFieldListener<GuiTextFieldInteger>
+    {
+        @Override
+        public boolean onTextChange(GuiTextFieldInteger textField)
+        {
+            try
+            {
+                int multiplier = Integer.parseInt(textField.getValueWrapper());
+
+                if (multiplier != this.gui.tree.getMultiplier())
+                {
+                    this.gui.tree.setMultiplier(multiplier);
+                    this.gui.getListWidget().refreshEntries();
+                    return true;
+                }
+            }
+            catch (Exception e)
+            {
+                this.gui.tree.setMultiplier(1);
+                this.gui.getListWidget().refreshEntries();
+            }
+
+            return false;
         }
     }
 
@@ -221,8 +298,9 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         {
             switch (this.type)
             {
-                case EXPAND_ALL   -> this.parent.tree.expandAll();
+                case EXPAND_ALL   -> { this.parent.tree.expandAll(); this.parent.tree.logStructure(); }
                 case COLLAPSE_ALL -> this.parent.tree.collapseAll();
+                case EXPORT       -> { this.parent.exportToFile(); return; }
             }
             this.parent.reInit();
         }

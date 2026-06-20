@@ -6,8 +6,12 @@
 	"rawmats.gui.button.merge": "同一をまとめる",
 	"rawmats.gui.button.expand_all": "すべて展開",
 	"rawmats.gui.button.collapse_all": "すべて畳む",
+	"rawmats.gui.button.export": "書き出し",
 	"rawmats.gui.label.expanded": "展開中:",
+	"rawmats.gui.label.multiplier": "倍率:",
 	"rawmats.gui.menu.expand": "展開",
 	"rawmats.gui.menu.fold_into": "%s に畳む",
-	"rawmats.message.no_material_list": "Litematica の material list がまだ開かれていない。先に Litematica メニューから開くこと。"
+	"rawmats.message.no_material_list": "Litematica の material list がまだ開かれていない。先に Litematica メニューから開くこと。",
+	"rawmats.message.exported": "原材料リストをファイルに書き出した: %s",
+	"rawmats.message.export_failed": "原材料リストの書き出しに失敗: %s"
 }

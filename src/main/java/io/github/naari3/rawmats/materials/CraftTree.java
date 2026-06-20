@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import org.apache.commons.lang3.tuple.Pair;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Holder;
@@ -17,18 +18,24 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
+import net.minecraft.world.item.crafting.display.RecipeDisplayId;
 
 import fi.dy.masa.malilib.util.data.ItemType;
+import fi.dy.masa.malilib.util.game.RecipeBookUtils;
 import fi.dy.masa.litematica.materials.MaterialListBase;
 import fi.dy.masa.litematica.materials.MaterialListEntry;
 import fi.dy.masa.litematica.materials.MaterialListUtils;
 import fi.dy.masa.litematica.materials.json.MaterialListJsonBase;
 
+import io.github.naari3.rawmats.Reference;
+
 /**
  * 「編集可能なフラット買い物リスト」のモデル。
  *
  * - root = schematic 直材。各々を {@link MaterialListJsonBase} で再帰展開した baked ツリー ({@link CraftNode}) を保持。
- * - 表示状態 = 「展開したアイテム種別」の集合 ({@link #expanded})。
+ * - 表示状態 = 「展開したアイテム種別」の集合ほか ({@link CraftTreeState})。source から分離して保持。
  * - 表示 ({@link #getDisplayRows}) = baked ツリーを辿り、展開対象は子へ in-place 置換、
  *   それ以外は frontier 葉として同一アイテムで合算 → フラットなリスト ({@link MatRow})。
  * - 在庫ネット: walk 中に在庫を引き当て、完全充足ノードは展開停止 (= 子を出さない)。
@@ -38,21 +45,21 @@ import fi.dy.masa.litematica.materials.json.MaterialListJsonBase;
 public class CraftTree
 {
     private final List<CraftNode> roots = new ArrayList<>();
-    private final Set<Item> expanded = new LinkedHashSet<>();
     private final Set<Item> expandableTypes = new HashSet<>();
     /** 子アイテム種別 -> それを直接の子に持つ親アイテム種別の集合 (畳み候補の逆引き)。 */
     private final Map<Item, Set<Item>> childToParents = new HashMap<>();
     private final Object2IntOpenHashMap<Item> available = new Object2IntOpenHashMap<>();
-    /** タグ材料の置換選択 (タグ -> 具体素材)。空ならすべて Litematica の自動選択 (先頭候補)。 */
-    private final Map<TagKey<Item>, Holder<Item>> materialOverride = new HashMap<>();
+    /** セッション内ビュー状態 (展開集合 / タグ置換 / 倍率)。source キーごとに {@link CraftTreeStore} で復元される。 */
+    private final CraftTreeState state;
     /** 直近の source。タグ材料の置換時にツリーを作り直すため保持。 */
     private MaterialListBase source;
 
     /** crafting と stonecutter が両立する場合に crafting を優先。 */
     private boolean craftingOnly = true;
 
-    public CraftTree(MaterialListBase source)
+    public CraftTree(MaterialListBase source, CraftTreeState state)
     {
+        this.state = state;
         this.rebuild(source);
     }
 
@@ -63,12 +70,14 @@ public class CraftTree
         this.expandableTypes.clear();
         this.childToParents.clear();
 
+        int mult = Math.max(1, this.state.multiplier);
+
         for (MaterialListEntry e : source.getMaterialsAll())
         {
             Holder<Item> item = e.getStack().typeHolder();
-            int total = e.getStack().getCount() * e.getCountTotal();
+            int total = e.getStack().getCount() * e.getCountTotal() * mult;
             MaterialListJsonBase base = new MaterialListJsonBase(item, total, null, this.craftingOnly);
-            CraftNode node = CraftNode.fromBase(base, 0, this.materialOverride, this.craftingOnly);
+            CraftNode node = CraftNode.fromBase(base, 0, this.state.materialOverride, this.craftingOnly);
             this.roots.add(node);
             this.indexNode(node);
         }
@@ -76,10 +85,34 @@ public class CraftTree
         this.refreshAvailable();
     }
 
+    public int getMultiplier() { return this.state.multiplier; }
+
+    /** 書き出し用: source の表示タイトル。 */
+    public String getSourceTitle() { return this.source != null ? this.source.getTitle() : ""; }
+
+    /** 書き出し用: タグ材料の置換選択 (タグ -> 具体素材)。ユーザーが選んだものだけ含む。 */
+    public Map<TagKey<Item>, Holder<Item>> getMaterialOverrides() { return this.state.materialOverride; }
+
+    /** 倍率を設定し (1 以上にクランプ)、変化があればツリーを作り直す (展開状態・タグ選択は維持)。 */
+    public void setMultiplier(int multiplier)
+    {
+        int clamped = Math.max(1, multiplier);
+
+        if (clamped != this.state.multiplier)
+        {
+            this.state.multiplier = clamped;
+
+            if (this.source != null)
+            {
+                this.rebuild(this.source);
+            }
+        }
+    }
+
     /** タグ材料 key に具体素材 item を割り当て、ツリーを再構築する (展開状態は維持)。 */
     public void chooseMaterial(TagKey<Item> key, Holder<Item> item)
     {
-        this.materialOverride.put(key, item);
+        this.state.materialOverride.put(key, item);
 
         if (this.source != null)
         {
@@ -124,12 +157,62 @@ public class CraftTree
 
     public int availableFor(Holder<Item> item) { return this.available.getInt(item.value()); }
 
-    public boolean isExpandable(Item it) { return this.expandableTypes.contains(it) && !this.expanded.contains(it); }
+    /**
+     * デバッグ用: ベイク済みツリー構造 + フラット表示行をログに出す (Expand all 押下時に呼ばれる)。
+     * 各ノードの item / count / 子数 / 展開可否、leaf については recipe book を直接引いて
+     * 「レシピが book に存在するか」を出す (recipeBookLookup: -1=level/player null, 0=book に無い)。
+     * 在庫差引後の表示行 (need/have/expandable/foldable/choosable) も合わせて確認できる。
+     */
+    public void logStructure()
+    {
+        Reference.LOGGER.info("[rawmats] CraftTree dump: roots={}, expandableTypes={}, multiplier={}",
+                this.roots.size(), this.expandableTypes.size(), this.state.multiplier);
 
-    public void expand(Item it)   { if (this.expandableTypes.contains(it)) this.expanded.add(it); }
-    public void collapse(Item it) { this.expanded.remove(it); }
-    public void expandAll()       { this.expanded.addAll(this.expandableTypes); }
-    public void collapseAll()     { this.expanded.clear(); }
+        for (CraftNode r : this.roots)
+        {
+            this.dumpNode(r);
+        }
+
+        // 実際にユーザーが見るフラット表示行もダンプする (在庫差引・合算後の状態)。
+        List<MatRow> rows = this.getDisplayRows();
+        Reference.LOGGER.info("[rawmats] display rows ({}) ====", rows.size());
+
+        for (MatRow r : rows)
+        {
+            Reference.LOGGER.info("[rawmats]   ROW {} need={} have={} expandable={} foldable={} choosable={}",
+                    BuiltInRegistries.ITEM.getKey(r.item.value()), r.need, r.have, r.expandable, r.foldable, r.choosable);
+        }
+    }
+
+    private void dumpNode(CraftNode n)
+    {
+        String id = BuiltInRegistries.ITEM.getKey(n.item.value()).toString();
+        String indent = "  ".repeat(n.depth);
+        Reference.LOGGER.info("[rawmats] {}{} x{} children={} expandable={} choosable={}",
+                indent, id, n.count, n.children.size(), n.isExpandable(), n.isChoosable());
+
+        if (n.children.isEmpty())
+        {
+            List<Pair<RecipeDisplayId, RecipeDisplayEntry>> lookup =
+                    RecipeBookUtils.getDisplayEntryFromRecipeBook(new ItemStack(n.item),
+                            List.of(RecipeBookUtils.Type.SHAPED, RecipeBookUtils.Type.SHAPELESS,
+                                    RecipeBookUtils.Type.STONECUTTER, RecipeBookUtils.Type.FURNACE));
+            int sz = lookup == null ? -1 : lookup.size();
+            Reference.LOGGER.info("[rawmats] {}  -> LEAF {} recipeBookLookup={}", indent, id, sz);
+        }
+
+        for (CraftNode c : n.children)
+        {
+            this.dumpNode(c);
+        }
+    }
+
+    public boolean isExpandable(Item it) { return this.expandableTypes.contains(it) && !this.state.expanded.contains(it); }
+
+    public void expand(Item it)   { if (this.expandableTypes.contains(it)) this.state.expanded.add(it); }
+    public void collapse(Item it) { this.state.expanded.remove(it); }
+    public void expandAll()       { this.state.expanded.addAll(this.expandableTypes); }
+    public void collapseAll()     { this.state.expanded.clear(); }
 
     /** frontier 素材 child を畳み戻せる「展開中の親」候補 (= child を直接の子に持つ、展開中の親種別)。 */
     public List<Item> getCollapseCandidates(Item child)
@@ -139,7 +222,7 @@ public class CraftTree
 
         if (parents != null)
         {
-            for (Item it : this.expanded)
+            for (Item it : this.state.expanded)
             {
                 if (parents.contains(it))
                 {
@@ -159,7 +242,7 @@ public class CraftTree
         }
         for (Item it : parents)
         {
-            if (this.expanded.contains(it))
+            if (this.state.expanded.contains(it))
             {
                 return true;
             }
@@ -184,7 +267,7 @@ public class CraftTree
         {
             Item it = en.getKey();
             Holder<Item> holder = BuiltInRegistries.ITEM.wrapAsHolder(it);
-            boolean expandable = this.expandableTypes.contains(it) && !this.expanded.contains(it);
+            boolean expandable = this.expandableTypes.contains(it) && !this.state.expanded.contains(it);
             boolean foldable = this.hasCollapseCandidate(it);
             CraftNode cn = choosable.get(it);
             rows.add(new MatRow(holder, en.getValue()[0], this.available.getInt(it), expandable, foldable,
@@ -201,7 +284,7 @@ public class CraftTree
         int net = n.count - alloc;
         boolean covered = net == 0;
 
-        if (!covered && this.expanded.contains(it) && n.isExpandable())
+        if (!covered && this.state.expanded.contains(it) && n.isExpandable())
         {
             List<CraftNode> children = n.children;
 
@@ -210,7 +293,7 @@ public class CraftTree
                 // 部分在庫: 不足分 net だけを作るサブツリーを再構築し、レシピ収量 (1 log -> 4 planks 等) を
                 // build() の正確な計算で反映する。在庫ゼロ (net == n.count) のときは baked をそのまま使う。
                 MaterialListJsonBase rebuilt = new MaterialListJsonBase(n.item, net, n.parentItem, this.craftingOnly);
-                children = CraftNode.fromBase(rebuilt, n.depth, this.materialOverride, this.craftingOnly).children;
+                children = CraftNode.fromBase(rebuilt, n.depth, this.state.materialOverride, this.craftingOnly).children;
             }
 
             for (CraftNode c : children)

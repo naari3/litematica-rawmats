@@ -15,6 +15,8 @@ import fi.dy.masa.litematica.materials.MaterialListBase;
 import io.github.naari3.rawmats.config.Hotkeys;
 import io.github.naari3.rawmats.gui.GuiCraftTree;
 import io.github.naari3.rawmats.materials.CraftTree;
+import io.github.naari3.rawmats.materials.CraftTreeState;
+import io.github.naari3.rawmats.materials.CraftTreeStore;
 
 public class KeyCallbacks implements IHotkeyCallback
 {
@@ -42,7 +44,9 @@ public class KeyCallbacks implements IHotkeyCallback
             return true;
         }
 
-        CraftTree tree = new CraftTree(source);
+        // 同じ material list を開き直したらセッション内状態 (展開/タグ選択/倍率) を復元する。
+        CraftTreeState state = CraftTreeStore.get(source);
+        CraftTree tree = new CraftTree(source, state);
         GuiBase.openGui(new GuiCraftTree(tree));
         return true;
     }
