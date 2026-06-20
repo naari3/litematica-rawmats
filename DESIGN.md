@@ -655,13 +655,31 @@ RawMaterialList.reCreateMaterialList()
 - 在庫配分が DFS 到達順に非依存 (配置を変えても結果が一致)。
 - 中間素材の出現別切り上げ過大が解消。
 
-### 残課題: ⑤ 性能
+### 残課題: ⑤ 性能 → 下記で第一弾対応
 
-- 実機で「変わらず重い」。特に **Expand all (= logStructure) で ≈1 秒**。
-  - 主因候補: (a) デバッグログの leaf ごとの `getDisplayEntryFromRecipeBook` (recipe book 全走査) が leaf 数分、
-    (b) `getDisplayRows` が展開対象ごとに毎回 `new MaterialListJsonBase` で分解し直す (recipe book 走査)、
-    (c) GUI を開くたびの eager 全 build。
-  - 次は ⑤ に着手予定。
+---
+
+## 2026-06-21 ⑤ 性能 第一弾 (ログ軽量化 + 行キャッシュ) → 実機 ≈1/3 に
+
+### 切り分け
+
+- Expand all ≈1 秒の主因:
+  - (a) デバッグログ (`dumpNode`) が **leaf ごとに `getDisplayEntryFromRecipeBook` = recipe book 全走査**。
+  - (b) `getDisplayRows` が呼ばれるたびに展開対象を `new MaterialListJsonBase` で分解 (これは内部で
+    **サブツリー全体を再帰構築** = 各ノードで recipe book 走査)。reInit ごとに ~3 回 (summary / list / log)。
+
+### 対応 (実機: ≈1/3 の時間に短縮)
+
+- (a) `dumpNode` の leaf ごと recipe book 走査を**除去** (redstone 調査用で役目終了。構造 + 表示行ダンプは残す)。
+- (b) `getDisplayRows` の結果を**キャッシュ** (`cachedRows` / `rowsDirty`)。状態変化 (展開/在庫/ソート/hide/
+  ignore/倍率/タグ、= rebuild と各 mutator) 時のみ再計算。reInit 内の重複呼びと毎フレーム再計算を排除。
+
+### 残 (任意・第二弾)
+
+- `getDisplayRows` 1 回の計算自体はまだ「展開対象ごとに `new MaterialListJsonBase` でサブツリー全体を再帰
+  構築」しており、Expand all では型数分のフルビルド (recipe book 走査多数) が走る。
+  「**1 階層だけ分解**」(レシピ収量丸めを総量に1回で再現) にすれば型数 × 数回の走査に減らせるが、
+  Litematica のレシピ選択 + 丸めの再現が要る中規模作業。≈1/3 で十分なら据え置き。
 
 ---
 

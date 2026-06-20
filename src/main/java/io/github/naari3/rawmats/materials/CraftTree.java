@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.Set;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
-import org.apache.commons.lang3.tuple.Pair;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Holder;
@@ -19,11 +18,8 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
-import net.minecraft.world.item.crafting.display.RecipeDisplayId;
 
 import fi.dy.masa.malilib.util.data.ItemType;
-import fi.dy.masa.malilib.util.game.RecipeBookUtils;
 import fi.dy.masa.litematica.materials.MaterialListBase;
 import fi.dy.masa.litematica.materials.MaterialListEntry;
 import fi.dy.masa.litematica.materials.MaterialListUtils;
@@ -60,6 +56,10 @@ public class CraftTree
     /** crafting と stonecutter が両立する場合に crafting を優先。 */
     private boolean craftingOnly = true;
 
+    /** {@link #getDisplayRows} のキャッシュ。状態変化 (展開/在庫/ソート/hide/ignore/倍率/タグ) 時のみ再計算する。 */
+    private List<MatRow> cachedRows;
+    private boolean rowsDirty = true;
+
     /** 表示の並べ替え列 (本家 GuiMaterialList と同じ4列)。状態は {@link CraftTreeState} 側でセッション保持。 */
     public enum SortColumn { NAME, TOTAL, MISSING, AVAILABLE }
 
@@ -90,6 +90,7 @@ public class CraftTree
         }
 
         this.refreshAvailable();
+        this.rowsDirty = true;
     }
 
     public int getMultiplier() { return this.state.multiplier; }
@@ -202,16 +203,6 @@ public class CraftTree
         Reference.LOGGER.info("[rawmats] {}{} x{} children={} expandable={} choosable={}",
                 indent, id, n.count, n.children.size(), n.isExpandable(), n.isChoosable());
 
-        if (n.children.isEmpty())
-        {
-            List<Pair<RecipeDisplayId, RecipeDisplayEntry>> lookup =
-                    RecipeBookUtils.getDisplayEntryFromRecipeBook(new ItemStack(n.item),
-                            List.of(RecipeBookUtils.Type.SHAPED, RecipeBookUtils.Type.SHAPELESS,
-                                    RecipeBookUtils.Type.STONECUTTER, RecipeBookUtils.Type.FURNACE));
-            int sz = lookup == null ? -1 : lookup.size();
-            Reference.LOGGER.info("[rawmats] {}  -> LEAF {} recipeBookLookup={}", indent, id, sz);
-        }
-
         for (CraftNode c : n.children)
         {
             this.dumpNode(c);
@@ -220,15 +211,15 @@ public class CraftTree
 
     public boolean isExpandable(Item it) { return this.expandableTypes.contains(it) && !this.state.expanded.contains(it); }
 
-    public void expand(Item it)   { if (this.expandableTypes.contains(it)) this.state.expanded.add(it); }
-    public void collapse(Item it) { this.state.expanded.remove(it); }
-    public void expandAll()       { this.state.expanded.addAll(this.expandableTypes); }
-    public void collapseAll()     { this.state.expanded.clear(); }
+    public void expand(Item it)   { if (this.expandableTypes.contains(it)) { this.state.expanded.add(it); this.rowsDirty = true; } }
+    public void collapse(Item it) { this.state.expanded.remove(it); this.rowsDirty = true; }
+    public void expandAll()       { this.state.expanded.addAll(this.expandableTypes); this.rowsDirty = true; }
+    public void collapseAll()     { this.state.expanded.clear(); this.rowsDirty = true; }
 
     public SortColumn getSortColumn()   { return this.state.sortColumn; }
     public boolean getSortInReverse()   { return this.state.sortReverse; }
     public boolean getHideAvailable()   { return this.state.hideAvailable; }
-    public void toggleHideAvailable()   { this.state.hideAvailable = !this.state.hideAvailable; }
+    public void toggleHideAvailable()   { this.state.hideAvailable = !this.state.hideAvailable; this.rowsDirty = true; }
 
     /** 列ヘッダクリック: 同じ列なら昇順/降順をトグル、別列なら切替 (本家 setSortCriteria に倣う)。 */
     public void setSortColumn(SortColumn c)
@@ -242,10 +233,12 @@ public class CraftTree
             this.state.sortColumn = c;
             this.state.sortReverse = c == SortColumn.NAME;
         }
+
+        this.rowsDirty = true;
     }
 
-    public void ignore(Item it)    { this.state.ignored.add(it); }
-    public void clearIgnored()     { this.state.ignored.clear(); }
+    public void ignore(Item it)    { this.state.ignored.add(it); this.rowsDirty = true; }
+    public void clearIgnored()     { this.state.ignored.clear(); this.rowsDirty = true; }
     public boolean hasIgnored()    { return !this.state.ignored.isEmpty(); }
 
     /** frontier 素材 child を畳み戻せる「展開中の親」候補 (= child を直接の子に持つ、展開中の親種別)。 */
@@ -294,6 +287,11 @@ public class CraftTree
      */
     public List<MatRow> getDisplayRows()
     {
+        if (!this.rowsDirty && this.cachedRows != null)
+        {
+            return this.cachedRows;
+        }
+
         Object2IntOpenHashMap<Item> stock = new Object2IntOpenHashMap<>(this.available);
         // 展開対象 (expanded ∩ expandable) の型 -> まだ分解していない総需要、と代表ノード (分解時の parent/recipe 用)。
         Map<Item, Long> pendingGross = new HashMap<>();
@@ -375,6 +373,8 @@ public class CraftTree
         }
 
         this.sortRows(rows);
+        this.cachedRows = rows;
+        this.rowsDirty = false;
         return rows;
     }
 
