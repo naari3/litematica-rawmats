@@ -1,0 +1,49 @@
+package io.github.naari3.rawmats.event;
+
+import net.minecraft.client.Minecraft;
+
+import fi.dy.masa.malilib.gui.GuiBase;
+import fi.dy.masa.malilib.gui.Message.MessageType;
+import fi.dy.masa.malilib.hotkeys.IHotkeyCallback;
+import fi.dy.masa.malilib.hotkeys.IKeybind;
+import fi.dy.masa.malilib.hotkeys.KeyAction;
+import fi.dy.masa.malilib.util.InfoUtils;
+
+import fi.dy.masa.litematica.data.DataManager;
+import fi.dy.masa.litematica.materials.MaterialListBase;
+
+import io.github.naari3.rawmats.config.Hotkeys;
+import io.github.naari3.rawmats.gui.GuiCraftTree;
+import io.github.naari3.rawmats.materials.CraftTree;
+
+public class KeyCallbacks implements IHotkeyCallback
+{
+    public static void init()
+    {
+        Hotkeys.OPEN_RAW_MATERIAL_LIST.getKeybind().setCallback(new KeyCallbacks());
+    }
+
+    @Override
+    public boolean onKeyAction(KeyAction action, IKeybind key)
+    {
+        Minecraft mc = Minecraft.getInstance();
+
+        if (mc.level == null || mc.player == null)
+        {
+            return false;
+        }
+
+        // 直近に開かれた Litematica material list を元ネタにする。
+        MaterialListBase source = DataManager.getMaterialList();
+
+        if (source == null)
+        {
+            InfoUtils.showGuiOrInGameMessage(MessageType.ERROR, "rawmats.message.no_material_list");
+            return true;
+        }
+
+        CraftTree tree = new CraftTree(source);
+        GuiBase.openGui(new GuiCraftTree(tree));
+        return true;
+    }
+}

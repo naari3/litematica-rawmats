@@ -1,0 +1,13 @@
+{
+	"rawmats.hotkeys.category.generic_hotkeys": "Generic Hotkeys",
+	"rawmats.config.hotkeys.openRawMaterialList": "Open Raw Material List",
+	"rawmats.config.hotkeys.openRawMaterialList.comment": "Opens the current Litematica material list expanded into raw (crafting-decomposed) materials.",
+	"rawmats.gui.title.raw_material_list": "Raw Material List",
+	"rawmats.gui.button.merge": "Merge identical",
+	"rawmats.gui.button.expand_all": "Expand all",
+	"rawmats.gui.button.collapse_all": "Collapse all",
+	"rawmats.gui.label.expanded": "Expanded:",
+	"rawmats.gui.menu.expand": "Expand",
+	"rawmats.gui.menu.fold_into": "Fold into %s",
+	"rawmats.message.no_material_list": "No Litematica material list is open yet. Open one from the Litematica menu first."
+}

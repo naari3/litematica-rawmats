@@ -1,0 +1,73 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version '1.17.+'
+}
+
+repositories {
+	mavenLocal()
+	// malilib / litematica (sakura-ryoko fork) はここに publish されている
+	maven { url = "https://masa.dy.fi/maven/sakura-ryoko"
+		content { includeGroupAndSubgroups("fi.dy.masa") }
+	}
+	// conditional-mixin (malilib/litematica の推移的依存)
+	maven { url = 'https://maven.fallenbreath.me/releases'
+		content { includeGroupAndSubgroups("me.fallenbreath") }
+	}
+	maven { url = 'https://jitpack.io'
+		content { includeGroupAndSubgroups("com.github") }
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+
+	// NOTE: マッピングは Mojang official (mojmap)。Litematica 26.2 の build.gradle は
+	// loom 1.17 に mappings 行を書かずに mojmap を使えている (loom が default 供給する模様)。
+	// もし "No mappings present" 等で失敗したら下行を有効化する:
+	// mappings loom.officialMojangMappings()
+
+	implementation "net.fabricmc:fabric-loader:${project.fabric_loader_version}"
+	implementation "com.google.code.findbugs:jsr305:3.0.2"
+
+	// 依存 mod。Litematica 本体の materials/json サブシステムを呼ぶためコンパイル依存する (方針 A)。
+	// NOTE(runtime): masa 系は本体ビルドでも plain `implementation` を使っている (litematica build.gradle:29)。
+	//   それに倣う。もし `runClient` で malilib/litematica が mod としてロードされない場合は、
+	//   modImplementation へ切替えるか、run/mods に両 jar を配置する。
+	implementation "fi.dy.masa.malilib:malilib-fabric-${project.minecraft_version_out}:${project.malilib_version}"
+	implementation "fi.dy.masa.litematica:litematica-fabric-${project.minecraft_version_out}:${project.litematica_version}"
+}
+
+loom {
+	runs {
+		client {
+			// コミット残が狭いマシン向けにクライアントヒープを抑える (後勝ちで既定の -Xmx を上書き)。
+			// 大きな schematic を扱うなら値を上げる。
+			vmArgs "-Xmx1536m"
+		}
+	}
+}
+
+base {
+	group = project.group
+	archivesName = project.mod_file_name + '-' + project.minecraft_version_out
+	version = project.mod_version
+}
+
+processResources {
+	inputs.property "mod_version", project.mod_version
+
+	filesMatching("fabric.mod.json") {
+		expand "mod_version": project.mod_version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.encoding = "UTF-8"
+	// Minecraft 26.1+ は Java 25
+	it.options.release = 25
+}
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+	withSourcesJar()
+}

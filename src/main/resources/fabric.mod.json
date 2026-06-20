@@ -1,0 +1,29 @@
+{
+	"schemaVersion": 1,
+	"id": "rawmats",
+	"name": "RawMaterials (Litematica)",
+	"version": "${mod_version}",
+
+	"description": "Litematica の material list を、クラフト前提資材を再帰展開した原材料の合計で表示するアドオン。",
+	"authors": [
+		"naari3"
+	],
+	"contact": {
+		"sources": "https://github.com/naari3/litematica-rawmats"
+	},
+
+	"license": "LGPL-3.0-or-later",
+
+	"environment": "client",
+	"entrypoints": {
+		"main": [
+			"io.github.naari3.rawmats.RawMaterials"
+		]
+	},
+
+	"depends": {
+		"minecraft": "~26.2-",
+		"malilib": ">=0.29.0- <0.30.0-",
+		"litematica": ">=0.28.0-"
+	}
+}
