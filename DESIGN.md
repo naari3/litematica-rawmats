@@ -608,8 +608,24 @@ RawMaterialList.reCreateMaterialList()
 
 ### 残 (任意・要望次第)
 
-- 行の ignore (本家の per-row 除外ボタン)、ソート/hide のセッション永続 (現状 GUI 閉じるとリセット)、
-  ツールチップ位置の微調整。
+- ツールチップ位置の微調整。
+
+---
+
+## 2026-06-21 v0.8 B+ 行の ignore + ソート/hide のセッション永続
+
+### 実装 (ビルド OK・実機確認: 正常終了/例外なし)
+
+- **行の ignore (本家 per-row 除外)**: 各行右端に「除外」ボタン (`WidgetCraftTreeEntry` の subWidget、
+  `WidgetContainer` のボタン分配で動作)。押すと `CraftTree.ignore(item)` でその種別を除外。
+  上部に「除外を解除」(`clearIgnored`) を、除外が1件以上あるときだけ表示。除外行は `getDisplayRows` でスキップ。
+- **ソート/hide/ignore のセッション永続**: `sortColumn` / `sortReverse` / `hideAvailable` を `CraftTree` の
+  一時フィールドから `CraftTreeState` に移動、`ignored` 集合も追加。これで展開状態・倍率・タグ選択と同様、
+  同じ material list を開き直すと並べ替え・hide・除外まで復元される (MC 再起動でクリアは従来どおり)。
+
+### 残
+
+- ツールチップ位置の微調整 (任意)。
 
 ---
 

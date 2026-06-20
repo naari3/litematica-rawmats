@@ -8,6 +8,8 @@
 	"rawmats.gui.button.collapse_all": "Collapse all",
 	"rawmats.gui.button.export": "Export",
 	"rawmats.gui.button.hide_available": "Hide available: %s",
+	"rawmats.gui.button.ignore": "Ignore",
+	"rawmats.gui.button.clear_ignored": "Clear ignored",
 	"rawmats.gui.label.expanded": "Expanded:",
 	"rawmats.gui.label.multiplier": "Multiplier:",
 	"rawmats.gui.label.title.item": "Item",

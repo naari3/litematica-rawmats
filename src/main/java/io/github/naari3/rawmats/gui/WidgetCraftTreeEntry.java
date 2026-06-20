@@ -6,6 +6,9 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.world.item.ItemStack;
 
 import fi.dy.masa.malilib.gui.GuiBase;
+import fi.dy.masa.malilib.gui.button.ButtonBase;
+import fi.dy.masa.malilib.gui.button.ButtonGeneric;
+import fi.dy.masa.malilib.gui.button.IButtonActionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetListEntrySortable;
 import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.render.RenderUtils;
@@ -72,6 +75,13 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
             this.header2 = GuiBase.TXT_BOLD + StringUtils.translate(HEADERS[1]) + GuiBase.TXT_RST;
             this.header3 = GuiBase.TXT_BOLD + StringUtils.translate(HEADERS[2]) + GuiBase.TXT_RST;
             this.header4 = GuiBase.TXT_BOLD + StringUtils.translate(HEADERS[3]) + GuiBase.TXT_RST;
+        }
+
+        // 行ごとの除外 (ignore) ボタンを右端に置く (本家 WidgetMaterialListEntry に倣う)。
+        if (row != null)
+        {
+            String label = StringUtils.translate("rawmats.gui.button.ignore");
+            this.addButton(new ButtonGeneric(x + width - 2, y + 2, -1, true, label), new IgnoreListener(this, row));
         }
     }
 
@@ -253,6 +263,9 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
         // Available (= have): 充足してるなら緑、不足なら赤
         String preAvail = this.row.have >= this.row.need ? green : red;
         this.drawString(ctx, x4, y, color, preAvail + this.row.have);
+
+        // 行内ボタン (ignore) を描画。
+        this.drawSubWidgets(ctx, mouseX, mouseY);
     }
 
     @Override
@@ -339,5 +352,14 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
         }
 
         return String.format("%d", total);
+    }
+
+    private record IgnoreListener(WidgetCraftTreeEntry widget, MatRow row) implements IButtonActionListener
+    {
+        @Override
+        public void actionPerformedWithButton(ButtonBase button, int mouseButton)
+        {
+            this.widget.listWidget.getGui().ignoreRow(this.row);
+        }
     }
 }

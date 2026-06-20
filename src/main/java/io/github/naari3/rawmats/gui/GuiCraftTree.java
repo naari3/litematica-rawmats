@@ -68,6 +68,13 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         this.reInit();
     }
 
+    /** 行の除外 (ignore): リストから消す。Clear ignored で戻せる。 */
+    public void ignoreRow(MatRow row)
+    {
+        this.tree.ignore(row.item.value());
+        this.reInit();
+    }
+
     /** 右クリック: 親へ畳む。候補が 1 つなら即実行、複数のときだけアイコンポップアップで尋ねる。 */
     public void foldRow(MatRow row, int mouseX, int mouseY)
     {
@@ -187,6 +194,11 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         x += this.addButton(x, y, ButtonType.EXPAND_ALL) + gap;
         x += this.addToggle(x, y, ButtonType.HIDE_AVAILABLE, this.tree.getHideAvailable()) + gap;
 
+        if (this.tree.hasIgnored())
+        {
+            x += this.addButton(x, y, ButtonType.CLEAR_IGNORED) + gap;
+        }
+
         // 本家 GuiMaterialList に寄せて右上に倍率入力を置く。
         String label = StringUtils.translate("rawmats.gui.label.multiplier");
         int w = this.getStringWidth(label);
@@ -290,7 +302,8 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         COLLAPSE_ALL   ("rawmats.gui.button.collapse_all"),
         EXPAND_ALL     ("rawmats.gui.button.expand_all"),
         EXPORT         ("rawmats.gui.button.export"),
-        HIDE_AVAILABLE ("rawmats.gui.button.hide_available");
+        HIDE_AVAILABLE ("rawmats.gui.button.hide_available"),
+        CLEAR_IGNORED  ("rawmats.gui.button.clear_ignored");
 
         private final String key;
 
@@ -337,6 +350,7 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
                 case COLLAPSE_ALL   -> this.parent.tree.collapseAll();
                 case EXPORT         -> { this.parent.exportToFile(); return; }
                 case HIDE_AVAILABLE -> this.parent.tree.toggleHideAvailable();
+                case CLEAR_IGNORED  -> this.parent.tree.clearIgnored();
             }
             this.parent.reInit();
         }
