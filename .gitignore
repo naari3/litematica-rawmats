@@ -11,3 +11,4 @@ run/
 out/
 bin/
 .DS_Store
+run-client.log

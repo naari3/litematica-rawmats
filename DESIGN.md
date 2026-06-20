@@ -314,6 +314,59 @@ RawMaterialList.reCreateMaterialList()
 - 右クリックが list entry まで伝播するか要実機確認 (GuiBase が右クリックを食わない前提)。届かなければ要調整。
 - 残: 部分在庫スケーリング、⑤ タグ材料置換 (oak↔birch)。
 
+---
+
+## 2026-06-20 v0.6 タグ材料の置換 (Phase 2 ⑤)
+
+### 事実: Litematica のタグ材料解決ロジック
+
+- レシピ材料の解決は `MaterialListJsonEntry.build()` (`:171-188`) の中。ingredient が複数候補
+  (タグ = any planks 等) のとき `ingEntries.size() > 1` の分岐で
+  `overridePrimaryMaterial(ingEntries.get(0))` を呼び、**先頭候補 1 つに正規化**している。
+- `MaterialListJsonOverrides.overridePrimaryMaterial` (`:148`) は wool/bed/glass/concrete 等を
+  特定の色 (white) に寄せる分岐を持つが、**planks には分岐が無い** → matchOverride も該当せず、
+  `ingEntries.get(0)` (タグ登録順の先頭 = 通常 oak) がそのまま採用される。これが「stick=oak」の正体。
+- この選択ロジックに介入する公式の口は無い。`MaterialListJsonOverrides.INSTANCE` は `public static final`
+  だが内部の overrides は private、メソッドは protected。→ アドオンからは直接いじれない。
+- ただし元 `Ingredient` は `MaterialListJsonEntry.getRecipeRequirements()` (`primaryId` で引く) に残る。
+  各 ingredient の候補一覧は malilib の `((IMixinIngredient) ing).malilib_getEntries()` (HolderSet) で取得でき、
+  タグキーは `HolderSet.unwrapKey()` (Named なら present) で取れる。
+  - `IMixinIngredient` は **malilib が公開している mixin accessor** (Ingredient.values の @Accessor)。
+    これを呼ぶだけで、アドオン自前の mixin 追加では無いので「mixin 無し」方針は維持。
+
+### 決定 (ユーザー選択)
+
+- **粒度 = タグ単位グローバル**。「any planks → birch」のようにタグ単位で一括指定。そのタグ由来の材料は
+  全箇所で同じ具体素材になる。箱所 (親) 別は現行フラット合算 UI (同一アイテム 1 行) と非整合のため非対応。
+- **具体材料要求は対象外で固定**。例: schematic が birch_trapdoor を要求 → そのレシピ材料 birch_planks は
+  タグでなく具体指定 (候補 1 つ) なので置換 UI が出ず固定計上。タグ材料 (any planks の stick 等) だけが選択可能。
+  両者はフラット合算で正しく足し合わさる (oak のままなら別行、birch を選べば birch_planks 行に合流)。
+- **操作 = 中クリック**。左=展開 / 右=畳む は既存。中クリックで候補アイコンポップアップ。
+
+### 実装 (ビルド通過)
+
+- `materials/CraftNode`: `choiceKey` (TagKey) / `choices` (候補一覧) を追加。`fromBase` を改修し、
+  各子について「候補複数 (タグ) で、解決済み item を候補に含む ingredient」(`findTagIngredient`) を逆引き。
+  該当すれば候補/タグキーを保持し、`materialOverride` に選択があれば
+  `new MaterialListJsonBase(override, count, parent, craftingOnly)` でサブツリーを作り直す
+  (count は同種レシピ前提で維持)。`isChoosable()` 追加。
+- `materials/CraftTree`: `materialOverride` (タグ→具体) と `source` を保持。`chooseMaterial(key, item)` で
+  override 更新 → `rebuild` (展開状態は維持)。`walk` で frontier の choosable ノードを集約し `MatRow` に乗せる。
+- `materials/MatRow`: `choosable` / `choiceKey` / `choices` を追加。
+- `gui/GuiCraftTree`: `chooseRow` 追加 (候補を WidgetCraftMenu で提示)。ポップアップ生成を `openPopup` に共通化。
+- `gui/WidgetCraftTreeEntry`: 中クリック (`input()==2`) で `chooseRow`。choosable 行に金色 `[*]` マーカー。
+- `gradlew build` 成功。**実機 (runClient) での挙動は未検証** (in-game で schematic を読み込む操作が必要)。
+
+### 注意 / 未確認 / 残
+
+- `findTagIngredient` は「同一 item を候補に含む複数候補 ingredient」の最初の 1 つで対応付ける素朴版。
+  同一 item が複数の異なるタグ ingredient から来る稀ケースの曖昧性は未考慮。
+- `unwrapKey()` が empty (Direct HolderSet = タグでなく直接列挙の複数候補) のケースは選択対象外で固定。
+  planks/wool 等は Named タグなので対象になる想定だが、実機で choosable 判定の出方は要確認。
+- override 後のサブツリー再構築で、選択素材のレシピ収量が元と異なる場合の count ズレは未対応 (同種レシピ前提)。
+- 中クリックが list entry まで伝播するか要実機確認。`[*]` マーカーが長い名前で need 表示と重なる可能性。
+- 残 Phase 2: 部分在庫スケーリング、fold 粒度、UX (multiplier/検索/config 画面)、性能、SMP 完全性 (方針 B)。
+
 ## 参照 (ローカル clone)
 
 - `C:/Users/naari/src/github.com/sakura-ryoko/litematica` (branch 26.2)

@@ -14,6 +14,7 @@ import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 
@@ -42,6 +43,10 @@ public class CraftTree
     /** 子アイテム種別 -> それを直接の子に持つ親アイテム種別の集合 (畳み候補の逆引き)。 */
     private final Map<Item, Set<Item>> childToParents = new HashMap<>();
     private final Object2IntOpenHashMap<Item> available = new Object2IntOpenHashMap<>();
+    /** タグ材料の置換選択 (タグ -> 具体素材)。空ならすべて Litematica の自動選択 (先頭候補)。 */
+    private final Map<TagKey<Item>, Holder<Item>> materialOverride = new HashMap<>();
+    /** 直近の source。タグ材料の置換時にツリーを作り直すため保持。 */
+    private MaterialListBase source;
 
     /** crafting と stonecutter が両立する場合に crafting を優先。 */
     private boolean craftingOnly = true;
@@ -53,6 +58,7 @@ public class CraftTree
 
     public void rebuild(MaterialListBase source)
     {
+        this.source = source;
         this.roots.clear();
         this.expandableTypes.clear();
         this.childToParents.clear();
@@ -62,12 +68,23 @@ public class CraftTree
             Holder<Item> item = e.getStack().typeHolder();
             int total = e.getStack().getCount() * e.getCountTotal();
             MaterialListJsonBase base = new MaterialListJsonBase(item, total, null, this.craftingOnly);
-            CraftNode node = CraftNode.fromBase(base, 0);
+            CraftNode node = CraftNode.fromBase(base, 0, this.materialOverride, this.craftingOnly);
             this.roots.add(node);
             this.indexNode(node);
         }
 
         this.refreshAvailable();
+    }
+
+    /** タグ材料 key に具体素材 item を割り当て、ツリーを再構築する (展開状態は維持)。 */
+    public void chooseMaterial(TagKey<Item> key, Holder<Item> item)
+    {
+        this.materialOverride.put(key, item);
+
+        if (this.source != null)
+        {
+            this.rebuild(this.source);
+        }
     }
 
     private void indexNode(CraftNode n)
@@ -155,10 +172,11 @@ public class CraftTree
     {
         Object2IntOpenHashMap<Item> budget = new Object2IntOpenHashMap<>(this.available);
         LinkedHashMap<Item, int[]> needMap = new LinkedHashMap<>();
+        Map<Item, CraftNode> choosable = new HashMap<>();
 
         for (CraftNode r : this.roots)
         {
-            this.walk(r, budget, needMap);
+            this.walk(r, budget, needMap, choosable);
         }
 
         List<MatRow> rows = new ArrayList<>();
@@ -168,12 +186,14 @@ public class CraftTree
             Holder<Item> holder = BuiltInRegistries.ITEM.wrapAsHolder(it);
             boolean expandable = this.expandableTypes.contains(it) && !this.expanded.contains(it);
             boolean foldable = this.hasCollapseCandidate(it);
-            rows.add(new MatRow(holder, en.getValue()[0], this.available.getInt(it), expandable, foldable));
+            CraftNode cn = choosable.get(it);
+            rows.add(new MatRow(holder, en.getValue()[0], this.available.getInt(it), expandable, foldable,
+                    cn != null, cn != null ? cn.choiceKey : null, cn != null ? cn.choices : null));
         }
         return rows;
     }
 
-    private void walk(CraftNode n, Object2IntOpenHashMap<Item> budget, Map<Item, int[]> needMap)
+    private void walk(CraftNode n, Object2IntOpenHashMap<Item> budget, Map<Item, int[]> needMap, Map<Item, CraftNode> choosable)
     {
         Item it = n.item.value();
         int alloc = Math.min(n.count, budget.getInt(it));
@@ -185,12 +205,17 @@ public class CraftTree
         {
             for (CraftNode c : n.children)
             {
-                this.walk(c, budget, needMap);
+                this.walk(c, budget, needMap, choosable);
             }
         }
         else
         {
             needMap.computeIfAbsent(it, k -> new int[1])[0] += net;
+
+            if (n.isChoosable())
+            {
+                choosable.putIfAbsent(it, n);
+            }
         }
     }
 }

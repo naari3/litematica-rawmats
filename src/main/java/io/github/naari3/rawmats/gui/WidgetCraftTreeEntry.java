@@ -44,7 +44,7 @@ public class WidgetCraftTreeEntry extends WidgetListEntryBase<MatRow>
             return false;
         }
 
-        // 左クリック = 展開、右クリック = 親へ畳む
+        // 左クリック = 展開、右クリック = 親へ畳む、中クリック = タグ材料の素材選択
         if (click.input() == 0 && this.row.expandable)
         {
             this.listWidget.getGui().expandRow(this.row);
@@ -53,6 +53,11 @@ public class WidgetCraftTreeEntry extends WidgetListEntryBase<MatRow>
         else if (click.input() == 1 && this.row.foldable)
         {
             this.listWidget.getGui().foldRow(this.row, (int) click.x(), (int) click.y());
+            return true;
+        }
+        else if (click.input() == 2 && this.row.choosable)
+        {
+            this.listWidget.getGui().chooseRow(this.row, (int) click.x(), (int) click.y());
             return true;
         }
 
@@ -98,7 +103,15 @@ public class WidgetCraftTreeEntry extends WidgetListEntryBase<MatRow>
         ctx.renderItem(stack, iconX, this.y + 1);
 
         // 名前
-        this.drawString(ctx, iconX + 20, textY, 0xFFFFFFFF, stack.getHoverName().getString());
+        String name = stack.getHoverName().getString();
+        this.drawString(ctx, iconX + 20, textY, 0xFFFFFFFF, name);
+
+        // タグ材料 (中クリックで素材選択可) のマーカー
+        if (this.row.choosable)
+        {
+            int mx = iconX + 20 + this.getStringWidth(name) + 4;
+            this.drawString(ctx, mx, textY, 0xFFFFFFFF, GuiBase.TXT_GOLD + "[*]");
+        }
 
         // 必要数 (在庫) — 右寄せ。充足(need 0)なら緑、不足なら金。
         String pre = this.row.need <= 0 ? GuiBase.TXT_GREEN : GuiBase.TXT_GOLD;

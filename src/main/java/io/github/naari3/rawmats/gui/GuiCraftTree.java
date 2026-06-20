@@ -79,6 +79,29 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
             entries.add(new WidgetCraftMenu.Entry(holder, () -> this.tree.collapse(parent)));
         }
 
+        this.openPopup(entries, mouseX, mouseY);
+    }
+
+    /** 中クリック: タグ材料 (any planks 等) の具体素材を選び直す。候補をアイコンポップアップで提示。 */
+    public void chooseRow(MatRow row, int mouseX, int mouseY)
+    {
+        if (!row.choosable || row.choiceKey == null || row.choices == null)
+        {
+            return;
+        }
+
+        List<WidgetCraftMenu.Entry> entries = new ArrayList<>();
+        for (Holder<Item> cand : row.choices)
+        {
+            entries.add(new WidgetCraftMenu.Entry(cand, () -> this.tree.chooseMaterial(row.choiceKey, cand)));
+        }
+
+        this.openPopup(entries, mouseX, mouseY);
+    }
+
+    /** ポップアップメニューを画面内にクランプして表示する。 */
+    private void openPopup(List<WidgetCraftMenu.Entry> entries, int mouseX, int mouseY)
+    {
         WidgetCraftMenu menu = new WidgetCraftMenu(mouseX, mouseY, entries, this);
         int px = Math.min(mouseX, this.getScreenWidth() - menu.getWidth() - 4);
         int py = Math.min(mouseY, this.getScreenHeight() - menu.getHeight() - 4);

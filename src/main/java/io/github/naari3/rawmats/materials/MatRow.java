@@ -1,6 +1,9 @@
 package io.github.naari3.rawmats.materials;
 
+import java.util.List;
+import javax.annotation.Nullable;
 import net.minecraft.core.Holder;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 
 /**
@@ -17,13 +20,23 @@ public class MatRow
     public final boolean expandable;
     /** 展開中の親へ畳み戻せるか。 */
     public final boolean foldable;
+    /** タグ材料 (any planks 等) 由来で、別の具体素材に置換できるか。 */
+    public final boolean choosable;
+    /** 置換キー (タグ)。choosable のときのみ非 null。 */
+    @Nullable public final TagKey<Item> choiceKey;
+    /** 置換候補一覧。choosable のときのみ非 null。 */
+    @Nullable public final List<Holder<Item>> choices;
 
-    public MatRow(Holder<Item> item, int need, int have, boolean expandable, boolean foldable)
+    public MatRow(Holder<Item> item, int need, int have, boolean expandable, boolean foldable,
+            boolean choosable, @Nullable TagKey<Item> choiceKey, @Nullable List<Holder<Item>> choices)
     {
         this.item = item;
         this.need = need;
         this.have = have;
         this.expandable = expandable;
         this.foldable = foldable;
+        this.choosable = choosable;
+        this.choiceKey = choiceKey;
+        this.choices = choices;
     }
 }
