@@ -1,36 +1,53 @@
-# RawMaterials (Litematica addon)
+# RawMaterials (Litematica)
 
-Litematica の material list を、**クラフト前提の資材を再帰展開した原材料の合計**で表示するクライアント側アドオン。
-(例: schematic が redstone block を要求 → 必要な redstone dust の総数として集計)
+A [Litematica](https://github.com/sakura-ryoko/litematica) addon that expands the material list into raw materials.
 
-- Minecraft **26.2** / Fabric
-- 依存: [malilib] 0.29.0+, [litematica] 0.28.0+ (sakura-ryoko fork)
+Litematica's material list shows what a schematic is made of, but anything you'd normally craft (a block of redstone, a hopper, a chest) is listed as-is. RawMaterials follows the crafting recipes and shows the total raw materials you need to gather, minus what's already in your inventory.
 
-> ステータス: **scaffold / WIP**。基本フローのみ。詳細・既知の課題は [DESIGN.md](./DESIGN.md)。
+## Requirements
 
-## 使い方 (v0)
+- Minecraft 26.2 (Fabric)
+- [malilib](https://github.com/sakura-ryoko/malilib) 0.29.0+
+- [Litematica](https://github.com/sakura-ryoko/litematica) 0.28.0+
 
-1. Litematica で通常通り material list を開く (一度開けば直近のリストとして記憶される)。
-2. hotkey **`M, R`** を押すと、その material list を原材料展開したビューが開く。
+## Features
 
-内部では Litematica 内蔵の再帰レシピ分解 (`materials/json`) を再利用している。
-レシピ取得は ClientRecipeBook 依存のため、**バニラ SMP では recipe book で未アンロックの
-レシピは展開されない**可能性がある (DESIGN.md 参照)。
+### Recipe expansion
 
-## ビルド
+Crafted items are broken down into their ingredients, recursively, down to raw materials.
+
+### Inventory netting
+
+Items already in your inventory are subtracted, so the list shows what's actually left to gather. Fully covered branches stop expanding and turn green.
+
+### Expand and fold
+
+Open or collapse individual rows, or the whole list at once.
+
+### Tag ingredients
+
+When a recipe accepts a tag (any planks, any log), you choose which item to count toward it.
+
+## Usage
+
+Open a material list in Litematica first; RawMaterials uses the most recently opened one. Then press `M + K` to open it as a raw-material list.
+
+Inside the list:
+
+- **Left-click** a row to expand it into its ingredients.
+- **Right-click** a row to fold it back into the crafted item.
+- **Middle-click** a tag row to pick which item to use.
+
+Press `M + C` to open the settings screen, where you can rebind both keys.
+
+## Notes
+
+Recipes come from your client's recipe book, the same source Litematica uses. On a vanilla multiplayer server, recipes you haven't unlocked won't expand, so some totals may not be fully broken down until you've unlocked them.
+
+## Building
 
 ```sh
 ./gradlew build
 ```
 
-成果物: `build/libs/rawmats-fabric-26.2-<version>.jar`。
-malilib と litematica と同じ MC バージョン (26.2) のものを mods に入れること。
-
-## 開発メモ
-
-- マッピングは Mojang official (mojmap)。
-- 依存解決は `https://masa.dy.fi/maven/sakura-ryoko`。
-- `runClient` で malilib/litematica が読まれない場合は build.gradle のコメント参照。
-
-[malilib]: https://github.com/sakura-ryoko/malilib
-[litematica]: https://github.com/sakura-ryoko/litematica
+The mod jar is written to `build/libs/` (e.g. `rawmats-fabric-26.2-0.1.0.jar`). Put it in your `mods` folder along with malilib and Litematica for the same Minecraft version.
