@@ -4,7 +4,7 @@
 	"name": "Litematica RawMaterials",
 	"version": "${mod_version}",
 
-	"description": "Litematica の material list を、クラフト前提資材を再帰展開した原材料の合計で表示するアドオン。",
+	"description": "A Litematica addon that expands the material list into the raw materials you need to gather, following crafting recipes.",
 	"authors": [
 		"naari3"
 	],
