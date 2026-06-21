@@ -1,4 +1,4 @@
-# RawMaterials (Litematica)
+# Litematica RawMaterials
 
 A [Litematica](https://github.com/sakura-ryoko/litematica) addon that expands the material list into raw materials.
 
