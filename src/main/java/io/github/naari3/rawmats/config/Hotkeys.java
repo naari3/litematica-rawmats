@@ -17,9 +17,10 @@ public class Hotkeys
     public static final ConfigHotkey OPEN_RAW_MATERIAL_LIST =
             new ConfigHotkey("openRawMaterialList", "M,K").apply(HOTKEYS_KEY);
 
-    // 設定画面 (ホットキーのリバインド等) を開く hotkey。既定 M,C。
+    // 設定画面 (ホットキーのリバインド等) を開く hotkey。既定 M,J。
+    // M,C は litematica の openGuiSettings (全体設定) と衝突するため避ける。
     public static final ConfigHotkey OPEN_CONFIG =
-            new ConfigHotkey("openConfig", "M,C").apply(HOTKEYS_KEY);
+            new ConfigHotkey("openConfig", "M,J").apply(HOTKEYS_KEY);
 
     /** keybind provider / 永続化用 (IHotkey として)。 */
     public static final List<IHotkey> HOTKEY_LIST = ImmutableList.of(

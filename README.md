@@ -38,7 +38,7 @@ Inside the list:
 - **Right-click** a row to fold it back into the crafted item.
 - **Middle-click** a tag row to pick which item to use.
 
-Press `M + C` to open the settings screen, where you can rebind both keys.
+Press `M + J` to open the settings screen, where you can rebind both keys.
 
 ## Notes
 

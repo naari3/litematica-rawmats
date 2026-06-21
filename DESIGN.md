@@ -713,9 +713,15 @@ RawMaterialList.reCreateMaterialList()
   - `rawmats.config.hotkeys.comment.openRawMaterialList` (ホバー)
   - openConfig も同様。実機で翻訳ラベル表示を確認。
 
----
+### 訂正: openConfig の既定キー M,C → M,J (litematica と衝突していた)
 
-## 参照 (ローカル clone)
+- 観察 (事実): litematica のデフォルト hotkey に `openGuiSettings = "M,C"` が既にある
+  (litematica `config/Hotkeys.java`)。こちらの openConfig も "M,C" にしていたため**完全衝突**。
+  malilib は同一キーバインドに複数 callback を許すので、M,C 押下で litematica 全体設定と
+  こちらの設定画面の両方が反応しうる実害。
+- litematica が使用済みの M 系: `M,A M,BUTTON_3 M,C M,G M,L M,P M,PAGE_DOWN M,PAGE_UP M,R M,S M,T M,V` + `M` 単独。
+  openRawMaterialList = `M,K` は litematica 未使用で空き (問題なし)。
+- 対応: openConfig を **`M,J`** に変更 (空きキー、M,K の隣)。README も更新。
 
 - `C:/Users/naari/src/github.com/sakura-ryoko/litematica` (branch 26.2)
 - `C:/Users/naari/src/github.com/sakura-ryoko/malilib` (branch 26.2)
