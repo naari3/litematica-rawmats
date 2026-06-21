@@ -683,6 +683,38 @@ RawMaterialList.reCreateMaterialList()
 
 ---
 
+## 2026-06-21 config 画面 (ホットキー リバインド) + lang キー形式の修正
+
+### 構成 (本家 litematica/malilib に寄せる)
+
+- `GuiConfigs extends GuiConfigsBase`。`getConfigs()` = `ConfigOptionWrapper.createFor(Hotkeys.CONFIG_LIST)`。
+- 開き方は 2 経路:
+  - hotkey `M,C` (`Hotkeys.OPEN_CONFIG`)。`KeyCallbacks` でワールド外でも開けるよう world null チェックの前に分岐。
+  - `Registry.CONFIG_SCREEN.registerConfigScreenFactory` で malilib の config 切替 / ModMenu からも開ける。
+- 既存 litematica 設定に相乗りせず別画面にした (本家設定を汚さない / 自モッドの設定として独立)。
+
+### バグと修正: config 画面のラベルが全部「生キー名」表示だった
+
+- 観察 (事実): config 画面は開けるが、項目名が `rawmats.config.hotkeys.openRawMaterialList` 等の
+  キー文字列そのまま表示。material list GUI 側 (タイトル/ボタン) は正しく翻訳されていた。
+- 原因: config 行ラベルは `WidgetConfigOption` → `config.getConfigGuiDisplayName()` →
+  `IConfigBase.getTranslatedName()` で解決される。`ConfigBase.apply(prefix)` は翻訳キーを
+  **`prefix + "." + KEY + "." + cleanName`** 形式で生成する (malilib `config/options/ConfigBase.java`):
+  - `TRANSLATED_NAME_KEY = "name"`   → 表示名キー `prefix.name.<cleanName>`
+  - `PRETTY_NAME_KEY = "prettyName"` → `prefix.prettyName.<cleanName>`
+  - `COMMENT_KEY = "comment"`        → ホバーキー `prefix.comment.<cleanName>`
+  - `cleanName` は ConfigHotkey の name 文字列そのまま (camelCase 保持。本家も `name.addSelectionBox`)。
+  - `getTranslatedName()` は prefix 有り時 `getTranslatedOrFallback(key, key)`。**キー未定義だと
+    フォールバックがキー文字列自体**になり、生キーがそのまま画面に出る (= 今回の症状)。
+- こちらの lang は `rawmats.config.hotkeys.openRawMaterialList` / `....openRawMaterialList.comment`
+  という非対応形式だったため一致せず生キー表示になっていた。
+- 修正: lang キーを apply() 生成形式に合わせて改名 (en/ja 両方)。
+  - `rawmats.config.hotkeys.name.openRawMaterialList` (表示名)
+  - `rawmats.config.hotkeys.comment.openRawMaterialList` (ホバー)
+  - openConfig も同様。実機で翻訳ラベル表示を確認。
+
+---
+
 ## 参照 (ローカル clone)
 
 - `C:/Users/naari/src/github.com/sakura-ryoko/litematica` (branch 26.2)

@@ -1,7 +1,10 @@
 {
 	"rawmats.hotkeys.category.generic_hotkeys": "Generic Hotkeys",
-	"rawmats.config.hotkeys.openRawMaterialList": "Open Raw Material List",
-	"rawmats.config.hotkeys.openRawMaterialList.comment": "Opens the current Litematica material list expanded into raw (crafting-decomposed) materials.",
+	"rawmats.config.hotkeys.name.openRawMaterialList": "Open Raw Material List",
+	"rawmats.config.hotkeys.comment.openRawMaterialList": "Opens the current Litematica material list expanded into raw (crafting-decomposed) materials.",
+	"rawmats.config.hotkeys.name.openConfig": "Open Settings",
+	"rawmats.config.hotkeys.comment.openConfig": "Opens the RawMaterials settings screen.",
+	"rawmats.gui.title.configs": "RawMaterials Settings",
 	"rawmats.gui.title.raw_material_list": "Raw Material List",
 	"rawmats.gui.button.merge": "Merge identical",
 	"rawmats.gui.button.expand_all": "Expand all",

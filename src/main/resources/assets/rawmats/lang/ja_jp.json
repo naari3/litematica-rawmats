@@ -1,7 +1,10 @@
 {
 	"rawmats.hotkeys.category.generic_hotkeys": "一般 Hotkey",
-	"rawmats.config.hotkeys.openRawMaterialList": "原材料リストを開く",
-	"rawmats.config.hotkeys.openRawMaterialList.comment": "現在の Litematica material list を、クラフト展開後の原材料に分解して開く。",
+	"rawmats.config.hotkeys.name.openRawMaterialList": "原材料リストを開く",
+	"rawmats.config.hotkeys.comment.openRawMaterialList": "現在の Litematica material list を、クラフト展開後の原材料に分解して開く。",
+	"rawmats.config.hotkeys.name.openConfig": "設定を開く",
+	"rawmats.config.hotkeys.comment.openConfig": "RawMaterials の設定画面を開く。",
+	"rawmats.gui.title.configs": "RawMaterials 設定",
 	"rawmats.gui.title.raw_material_list": "原材料リスト",
 	"rawmats.gui.button.merge": "同一をまとめる",
 	"rawmats.gui.button.expand_all": "すべて展開",

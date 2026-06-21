@@ -13,6 +13,7 @@ import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.materials.MaterialListBase;
 
 import io.github.naari3.rawmats.config.Hotkeys;
+import io.github.naari3.rawmats.gui.GuiConfigs;
 import io.github.naari3.rawmats.gui.GuiCraftTree;
 import io.github.naari3.rawmats.materials.CraftTree;
 import io.github.naari3.rawmats.materials.CraftTreeState;
@@ -22,13 +23,22 @@ public class KeyCallbacks implements IHotkeyCallback
 {
     public static void init()
     {
-        Hotkeys.OPEN_RAW_MATERIAL_LIST.getKeybind().setCallback(new KeyCallbacks());
+        KeyCallbacks callback = new KeyCallbacks();
+        Hotkeys.OPEN_RAW_MATERIAL_LIST.getKeybind().setCallback(callback);
+        Hotkeys.OPEN_CONFIG.getKeybind().setCallback(callback);
     }
 
     @Override
     public boolean onKeyAction(KeyAction action, IKeybind key)
     {
         Minecraft mc = Minecraft.getInstance();
+
+        // 設定画面を開く (ワールド外でも可)。
+        if (key == Hotkeys.OPEN_CONFIG.getKeybind())
+        {
+            GuiBase.openGui(new GuiConfigs());
+            return true;
+        }
 
         if (mc.level == null || mc.player == null)
         {
