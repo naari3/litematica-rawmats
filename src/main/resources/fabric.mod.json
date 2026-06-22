@@ -4,6 +4,7 @@
 	"name": "Litematica RawMaterials",
 	"version": "${mod_version}",
 
+	"icon": "assets/rawmats/icon.png",
 	"description": "A Litematica addon that expands the material list into the raw materials you need to gather, following crafting recipes.",
 	"authors": [
 		"naari3"
