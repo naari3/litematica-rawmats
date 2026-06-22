@@ -25,5 +25,12 @@
 		"minecraft": "~26.2-",
 		"malilib": ">=0.29.0- <0.30.0-",
 		"litematica": ">=0.28.0-"
+	},
+
+	"custom": {
+		"mc-publish": {
+			"modrinth": "litematica-rawmaterials",
+			"curseforge": 1584162
+		}
 	}
 }
