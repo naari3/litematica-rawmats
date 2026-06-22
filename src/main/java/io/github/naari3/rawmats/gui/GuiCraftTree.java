@@ -134,6 +134,11 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         this.popup = menu;
     }
 
+    public boolean hasPopup()
+    {
+        return this.popup != null;
+    }
+
     public void onMenuActionDone()
     {
         this.popup = null;

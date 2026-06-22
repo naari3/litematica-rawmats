@@ -143,6 +143,11 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
     @Override
     protected boolean onMouseClickedImpl(MouseButtonEvent click, boolean doubleClick)
     {
+        if (this.listWidget.getGui().hasPopup())
+        {
+            return false;
+        }
+
         // ヘッダ行: 列クリックでソート切替。
         if (this.row == null)
         {
@@ -191,7 +196,7 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
     public void render(GuiContext ctx, int mouseX, int mouseY, boolean selected)
     {
         // 背景 (ホバー / 偶奇)
-        if (this.row != null && this.isMouseOver(mouseX, mouseY))
+        if (this.row != null && this.isMouseOver(mouseX, mouseY) && !this.listWidget.getGui().hasPopup())
         {
             RenderUtils.drawRect(ctx, this.x, this.y, this.width, this.height, 0xA0707070);
         }
@@ -271,9 +276,9 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
     @Override
     public void postRenderHovered(GuiContext ctx, int mouseX, int mouseY, boolean selected)
     {
-        if (this.row == null)
+        if (this.row == null || this.listWidget.getGui().hasPopup())
         {
-            return; // ヘッダ行にはツールチップ無し
+            return;
         }
 
         String hItem    = GuiBase.TXT_BOLD + StringUtils.translate(HEADERS[0]);
