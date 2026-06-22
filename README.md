@@ -2,6 +2,8 @@
 
 A [Litematica](https://github.com/sakura-ryoko/litematica) addon that expands the material list into raw materials.
 
+<img width="2560" height="1440" alt="2026-06-22_20 26 30" src="https://github.com/user-attachments/assets/e70d3894-bde5-480f-9f6b-fe93f0c9f94a" />
+
 Litematica's material list shows what a schematic is made of, but anything you'd normally craft (a block of redstone, a hopper, a chest) is listed as-is. RawMaterials follows the crafting recipes and shows the total raw materials you need to gather, minus what's already in your inventory.
 
 ## Requirements
