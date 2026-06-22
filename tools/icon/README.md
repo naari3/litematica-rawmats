@@ -39,4 +39,6 @@ position, gloss strengths, shadow offset) to adjust the look.
 
 `litematica_base.png` is the icon of
 [Litematica](https://github.com/sakura-ryoko/litematica) (LGPL-3.0), used here
-as the base for this addon's derivative icon. RawMaterials is also LGPL-3.0.
+as the base for this addon's derivative icon. The RawMaterials code is MIT
+(see the repo `LICENSE`); the generated icon stays a derivative of that
+LGPL-3.0 artwork.

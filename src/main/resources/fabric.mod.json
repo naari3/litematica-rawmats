@@ -13,7 +13,7 @@
 		"sources": "https://github.com/naari3/litematica-rawmats"
 	},
 
-	"license": "LGPL-3.0-or-later",
+	"license": "MIT",
 
 	"environment": "client",
 	"entrypoints": {
