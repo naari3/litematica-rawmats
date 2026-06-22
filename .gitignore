@@ -1,6 +1,14 @@
+# Gradle / build output
 .gradle/
 build/
+out/
+bin/
+
+# Fabric Loom run dir
 run/
+run-client.log
+
+# IDE
 *.classpath
 *.project
 .settings/
@@ -8,7 +16,13 @@ run/
 *.iml
 *.ipr
 *.iws
-out/
-bin/
+
+# OS
 .DS_Store
-run-client.log
+
+# Python (icon generator)
+__pycache__/
+*.pyc
+
+# Scratch dir
+tmp/
