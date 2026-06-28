@@ -307,6 +307,11 @@ public class CraftTree
         }
 
         // 展開対象を親→子の順で処理。各型の総需要を1回だけ在庫ネット + 分解する。
+        // 型 DAG に cycle がありうる (stone↔cobblestone: MC 26.2 の stonecutter で
+        // stone→cobblestone があり、furnace の smelt は cobblestone→stone なので相互に親子)。
+        // topo は cycle 検出して各 type を 1 度だけ処理するが、cycle 内 type に対し後段で
+        // 別 path から addGross された分が残り、それが消滅するのを防ぐため、処理済みの type は
+        // pendingGross を 0 で上書き → 残量を持つ type は最後に frontier へ逃がす。
         for (Item x : this.topoExpandedTypes())
         {
             Long g = pendingGross.get(x);
@@ -317,6 +322,7 @@ public class CraftTree
             }
 
             long gross = g;
+            pendingGross.put(x, 0L); // 処理済みマーク (この loop 内で cycle 経由 + される分は後段で拾う)
             int have = stock.getInt(x);
             long toCraft = Math.max(0L, gross - have);
             CraftNode rep = repNode.get(x);
@@ -333,14 +339,55 @@ public class CraftTree
                 continue;
             }
 
-            stock.addTo(x, -(int) Math.min(have, gross)); // 在庫を消費
             // 不足分 toCraft を一度だけ分解 (レシピ収量の切り上げが総量に対して1回)。
             MaterialListJsonBase rebuilt = new MaterialListJsonBase(rep.item, (int) toCraft, rep.parentItem, this.craftingOnly);
             CraftNode decomposed = CraftNode.fromBase(rebuilt, rep.depth, this.state.materialOverride, this.craftingOnly);
 
+            // 再分解で展開可能な子が無いケース (Stone の smelting レシピ ingredient が prev と一致して
+            // MaterialListJsonBase の checkIfLoop が発火 → materialsRemaining 落ち、fromBase の追跡対象から外れる)。
+            // このまま frontier にも pending にも積まないと行が消滅するので、leaf として frontier に残す。
+            if (decomposed.children.isEmpty())
+            {
+                Reference.LOGGER.debug("[rawmats] re-decomposition produced no children for {} (prev={}); keeping as leaf",
+                        BuiltInRegistries.ITEM.getKey(rep.item.value()),
+                        rep.parentItem != null ? BuiltInRegistries.ITEM.getKey(rep.parentItem.value()) : "<root>");
+                frontierGross.merge(x, gross, Long::sum);
+
+                if (rep.isChoosable())
+                {
+                    choosable.putIfAbsent(x, rep);
+                }
+                continue;
+            }
+
+            stock.addTo(x, -(int) Math.min(have, gross)); // 在庫を消費 (子の処理で参照される)
+
             for (CraftNode c : decomposed.children)
             {
                 this.addGross(c, c.count, pendingGross, repNode, frontierGross, choosable);
+            }
+        }
+
+        // 型 DAG cycle の救済: topo 1 回処理で消費されずに残った pending 量 (cycle 内 type で
+        // 後段に addGross された分) を frontier に逃がす。これがないと cycle 内 type は表示行から消滅する。
+        for (Map.Entry<Item, Long> en : pendingGross.entrySet())
+        {
+            long gross = en.getValue();
+
+            if (gross <= 0)
+            {
+                continue;
+            }
+
+            Item x = en.getKey();
+            Reference.LOGGER.debug("[rawmats] unprocessed pending residual {} = {} after topo (cycle); treating as leaf",
+                    BuiltInRegistries.ITEM.getKey(x), gross);
+            frontierGross.merge(x, gross, Long::sum);
+            CraftNode rep = repNode.get(x);
+
+            if (rep != null && rep.isChoosable())
+            {
+                choosable.putIfAbsent(x, rep);
             }
         }
 

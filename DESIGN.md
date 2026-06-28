@@ -727,3 +727,79 @@ RawMaterialList.reCreateMaterialList()
 - `C:/Users/naari/src/github.com/sakura-ryoko/malilib` (branch 26.2)
 - 主要ファイル: `materials/json/MaterialListJson*.java`, `gui/GuiMaterialList.java`,
   `gui/widgets/WidgetMaterialListEntry.java`, malilib `util/game/RecipeBookUtils.java`
+
+---
+
+## 2026-06-28 型 DAG cycle 対応 (stone↔cobblestone 双方向で行が消滅していた)
+
+### 観察 (実機ログ)
+
+`50_Array_Loose_Items_.litematic` で Expand all を押すと、display rows に stone も cobblestone も
+出てこない。1段階ずつ expand すると `Furnace → Cobblestone → Stone` までは出るが、Furnace まで
+collapse して再度展開すると最終的に消滅、というユーザー報告。
+
+`logStructure()` ダンプを精読してわかったこと:
+
+```
+furnace x50 → cobblestone x400 (expandable=true, choosable=true) → stone x400 (leaf)
+stone_bricks x6 → stone x8 (expandable=true) → cobblestone x8 (leaf)
+```
+
+- `cobblestone` の方が `choosable=true` で、`Cobblestone を作るレシピ` が `choosable` (タグ材料) として
+  認識されている。つまり MC 26.2 vanilla の **stonecutter recipe で `stone → cobblestone` が追加されている**
+  (`/recipe give @s *` で全 unlock 済み = recipe book に乗る)。ingredient はタグ材料で stone が候補から選ばれている。
+- 一方 furnace の smelt は従来通り `cobblestone → stone`。
+- 結果として型 DAG が `typeChildren[stone] = {cobblestone}`, `typeChildren[cobblestone] = {stone}` の
+  相互参照になり、**cycle が生まれる**。
+
+### 直接の原因
+
+`CraftTree.getDisplayRows()` のグローバル集計は `topoExpandedTypes()` で各 type を親→子の topo 順に
+1 度ずつ処理する設計だった。cycle 検出は `inStack` フラグで return するだけで、cycle 内 type に対し
+後段の path から `addGross` された分はそのまま `pendingGross` に塩漬けになって、frontier にも積まれず
+=表示行から消滅していた。
+
+### 副次の原因 (こちらが先に当たりをつけて修正していた)
+
+ユーザーの 1 段階 expand シナリオ (`Furnace → Cobblestone → Stone` の Stone を expand) では:
+
+- Stone を `new MaterialListJsonBase(stone, n, prev=cobblestone, craftingOnly)` で再分解
+- Stone の唯一のレシピ `smelt cobblestone → stone` の ingredient (cobblestone) が prev と一致して
+  litematica の `checkIfLoop` (`MaterialListJsonBase.java:139-174`) が発火 → `materialsRemaining` に落ちる
+- `CraftNode.fromBase` は Crafting/Stonecutter/Furnace のみ追って Remaining を見ない → children 空
+- `getDisplayRows()` の元コードでは「children 空 → 何もせず continue」していたため、Stone が
+  frontier にも pending にも積まれずに消滅
+
+副次原因も cycle と同根 (型 DAG が cycle を持つこと自体は同じ。1 段階 expand と Expand all で見え方が違うだけ)。
+
+### 修正 (`CraftTree.getDisplayRows()`)
+
+1. **副次原因対応**: 再分解結果の `decomposed.children.isEmpty()` を検出して frontier に leaf として残す。
+2. **直接原因対応**: topo loop で処理した type は `pendingGross[x] = 0` で「処理済み」マーク。
+   loop 後に `pendingGross` を走査して残量 (cycle 経由で後段に積まれた分) を frontier に逃がす。
+3. 両方とも `Reference.LOGGER.debug(...)` で診断ログ。発火した type と prev を出す。
+
+### 診断ログ機構 (`-Drawmats.debug=true`)
+
+Log4j2 のデフォルト閾値 INFO のままだと `.debug()` はどこにも出ない (runClient / 本番共に)。
+ノイズを残さず開発時だけ debug を可視化したいので:
+
+- `InitHandler` 起動時に `Boolean.getBoolean("rawmats.debug")` を見て、true なら
+  `Configurator.setLevel(Reference.MOD_NAME, Level.DEBUG)` で rawmats logger だけ DEBUG に昇格 (root は触らない)。
+  Log4j2 Core は MC が transitively 持っているので追加依存なしで使える。
+- `build.gradle` の `runs.client.vmArgs` に `-Drawmats.debug=true` を追加 (runClient だけで debug 出る)。
+- 本番ユーザーは何もしなければ INFO のまま、必要時のみ JVM 引数で昇格できる。
+
+### 実機検証 (2026-06-28)
+
+修正版で Expand all / 段階 expand 両方とも stone・cobblestone が残ることを確認 (ユーザー OK)。
+DEBUG ログで `unprocessed pending residual minecraft:stone = N after topo (cycle)` が観測でき、
+cycle が起きている型がログから即特定できる状態になった。
+
+### 含意 / 残
+
+- 型 DAG cycle 自体は他の MC バージョンや mod 追加レシピで他のペアにも発生しうる。今回の fix は
+  ペア固有ではなく汎用 (`pendingGross` 残量を frontier に逃がす) のため、他 cycle にも自動的に効く。
+- choosable な cobblestone は「stonecutter で stone から削ってもらう」という意味で、ユーザー的には
+  「いやそんなレシピで作らねえよ」のケースが多いはず。今回は表示自体の消滅を直したのみで、
+  「stonecutter 経路の choosable cobblestone を別素材に振り直す UX」は別件。

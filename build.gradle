@@ -42,6 +42,8 @@ loom {
 			// コミット残が狭いマシン向けにクライアントヒープを抑える (後勝ちで既定の -Xmx を上書き)。
 			// 大きな schematic を扱うなら値を上げる。
 			vmArgs "-Xmx1536m"
+			// 開発時は rawmats logger を DEBUG に上げる (InitHandler が読む)。
+			vmArgs "-Drawmats.debug=true"
 		}
 	}
 }

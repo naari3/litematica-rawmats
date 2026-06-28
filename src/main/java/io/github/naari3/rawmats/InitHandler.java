@@ -1,5 +1,8 @@
 package io.github.naari3.rawmats;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.config.Configurator;
+
 import fi.dy.masa.malilib.config.ConfigManager;
 import fi.dy.masa.malilib.event.InputEventHandler;
 import fi.dy.masa.malilib.interfaces.IInitializationHandler;
@@ -16,6 +19,14 @@ public class InitHandler implements IInitializationHandler
     @Override
     public void registerModHandlers()
     {
+        // 開発・デバッグ用。-Drawmats.debug=true で rawmats logger を DEBUG に切替
+        // (Log4j2 の root を触らずローカルに昇格)。runClient (build.gradle) ではこの prop を渡している。
+        if (Boolean.getBoolean("rawmats.debug"))
+        {
+            Configurator.setLevel(Reference.MOD_NAME, Level.DEBUG);
+            Reference.LOGGER.info("[rawmats] DEBUG logging enabled via -Drawmats.debug");
+        }
+
         // config (hotkey の永続化用)
         ConfigManager.getInstance().registerConfigHandler(Reference.MOD_ID, new Configs());
 
