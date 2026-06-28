@@ -730,6 +730,66 @@ RawMaterialList.reCreateMaterialList()
 
 ---
 
+## 2026-06-23 クラフトツリー状態のディスク永続 (セッション越え)
+
+これまで `CraftTreeStore` はセッション内のみ (MC 再起動でクリア) だった。Litematica 本家が
+schematic 配置や material list 状態をどう永続しているか調べ、同じ仕組みに乗せて MC 再起動を跨いで
+展開状態などを保持するようにした。
+
+### 観察 (事実): Litematica 本家の永続化の仕組み
+
+- 保存形式は全て **JSON** (gson)。`DataManager.toJson()` が placements / selections 等をまとめ、
+  `MaterialListBase.toJson()` (type / sort_criteria / sort_reverse / hide_available / multiplier) も
+  `SchematicPlacement.toJson()` の中に埋め込まれて保存される。
+- 保存先: `config/litematica/litematica_data_[worldname].json` (world 固有) ほか。
+- ライフサイクルは malilib の `IConfigHandler` 経由 (本家の `Configs` も同じ仕組み):
+  - `WorldLoadHandler.onWorldLoadPost()` (malilib) が world 退出時に `saveAllConfigs()`、
+    world 入場時に `loadAllConfigs()` を呼ぶ。
+  - `InitializationHandler.onGameInitDone()` がゲーム起動完了時に `loadAllConfigs()` を呼ぶ。
+  - `ConfigManager.{load,save}AllConfigs()` は登録された全 `IConfigHandler` の `load()/save()` を回す
+    (map は modId キーだが iterate は values 全件なので、複数ハンドラを別キーで登録すれば全部呼ばれる)。
+
+### 決定 (ユーザー選択 = 方針 A): 独立 JSON を独自管理
+
+- 本家の `MaterialListBase.toJson()` に相乗りする案 (Mixin) は version 追従コストが高く却下。
+- **同じ `IConfigHandler` ライフサイクルだけ流用し、自前ファイルに自前形式で書く**。
+  - 保存先: `config/rawmats/craft_state.json` (export txt と同じ `config/rawmats/` 配下)。
+  - キーは既存の store キー `class名 + getTitle()` のまま。これは **world 非依存** (schematic 名ベース) なので、
+    world 固有ではなく **全 world 共通の単一ファイル**にした (同じ schematic は world を跨いで状態共有)。
+
+### 実装 (ビルド OK / 実機未検証)
+
+- `CraftTreeState`: `toJson()` / `fromJson(JsonObject)` を追加 (本家 `MaterialListBase` と同じ命名)。
+  - `expanded` / `ignored` (`Set<Item>`) → 登録 ID 文字列の配列。`material_overrides`
+    (`Map<TagKey<Item>, Holder<Item>>`) → `{ tag.location() : itemId }` の JSON object。
+    `multiplier` / `sort_column` (enum name) / `sort_reverse` / `hide_available` はそのまま。
+  - 復元時、未知 ID (mod 構成変更等で解決できないアイテム/タグ) は **スキップ** (`Identifier.tryParse` →
+    `BuiltInRegistries.ITEM.getOptional` が empty なら捨てる)。`sort_column` は不正値なら TOTAL に fallback。
+  - API (26.2 mojmap, sakura-ryoko fork): `ResourceLocation` は `net.minecraft.resources.Identifier` に改名。
+    `Identifier.tryParse`, `TagKey.create(Registries.ITEM, id)`, `BuiltInRegistries.ITEM.{getKey,getOptional,
+    wrapAsHolder}` を使用 (litematica `BlockUtils` / malilib の用例で裏取り)。
+- `CraftTreeStore`: `saveToFile()` / `loadFromFile()` を追加。`{version:1, entries:{storeKey: state}}` を
+  read/write。`save` は STORE が空なら何もしない (未使用ユーザーに空ファイルを作らない)。`load` は STORE を
+  clear して置換。IO/parse 例外は warn ログで握り潰し (他ハンドラを巻き込まない)。
+- `config/StatePersistence implements IConfigHandler`: `load()/save()` を上記に委譲する薄い adapter。
+  `InitHandler` で **別 modId キー `rawmats_state`** で登録 (hotkey 用 `Configs` は modId `rawmats` のまま。
+  ConfigManager の map は同一キー上書きなので別キーが必須)。
+
+### 設計上の含意 / 既知の割り切り
+
+- **保存タイミング = world 退出時 (+ hotkey config 画面を閉じた時)**。本家 `DataManager` と同じで、
+  ハードクラッシュ / Alt-F4 では直近変更がロストする (本家も同様)。GUI クローズごとの即時保存は未実装。
+- **load は game-init 時と world 入場時の 2 回**呼ばれるが、状態変更は in-world でしか起きず必ず world 退出時に
+  save される → ディスクが常に最新なので load 置換は冪等で安全 (新しい in-memory 状態を上書きする経路は無い)。
+- world 非依存キーのため、別 world でも同名 schematic は状態共有。これは仕様 (要らなければ後で world 別ファイルに分割可)。
+
+### 未検証 (実機 runClient が必要)
+
+- M,K で開いた状態 (展開/倍率/タグ選択/ソート/hide/ignore) が **MC 再起動後に復元**されるか。
+- 未知 ID スキップ・破損 JSON 時の挙動 (warn ログのみで GUI は通常起動するか)。
+
+---
+
 ## 2026-06-28 型 DAG cycle 対応 (stone↔cobblestone 双方向で行が消滅していた)
 
 ### 観察 (実機ログ)

@@ -10,6 +10,7 @@ import fi.dy.masa.malilib.registry.Registry;
 import fi.dy.masa.malilib.util.data.ModInfo;
 
 import io.github.naari3.rawmats.config.Configs;
+import io.github.naari3.rawmats.config.StatePersistence;
 import io.github.naari3.rawmats.event.InputHandler;
 import io.github.naari3.rawmats.event.KeyCallbacks;
 import io.github.naari3.rawmats.gui.GuiConfigs;
@@ -29,6 +30,10 @@ public class InitHandler implements IInitializationHandler
 
         // config (hotkey の永続化用)
         ConfigManager.getInstance().registerConfigHandler(Reference.MOD_ID, new Configs());
+
+        // クラフトツリーのビュー状態 (展開/タグ選択/倍率/ソート/ignore) のディスク永続。
+        // hotkey とは別 modId キーで登録 (ConfigManager の map は modId キーで、同一キーは上書きされるため)。
+        ConfigManager.getInstance().registerConfigHandler(Reference.MOD_ID + "_state", new StatePersistence());
 
         // config 画面の登録 (malilib の config 切替ドロップダウン / ModMenu からも開ける)。
         Registry.CONFIG_SCREEN.registerConfigScreenFactory(
