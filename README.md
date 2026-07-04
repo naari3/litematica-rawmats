@@ -32,7 +32,7 @@ When a recipe accepts a tag (any planks, any log), you choose which item to coun
 
 ## Usage
 
-Open a material list in Litematica first; RawMaterials uses the most recently opened one. Then press `M + K` to open it as a raw-material list.
+Press `M + K` to open the raw-material list. It uses the most recently opened Litematica material list; if none is open yet, it is generated automatically from the currently selected schematic placement (same as Litematica's `M + L`).
 
 Inside the list:
 

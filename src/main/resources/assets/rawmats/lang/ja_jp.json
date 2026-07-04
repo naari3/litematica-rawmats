@@ -23,7 +23,8 @@
 	"rawmats.gui.label.abbr.shulker_box": "SB",
 	"rawmats.gui.menu.expand": "展開",
 	"rawmats.gui.menu.fold_into": "%s に畳む",
-	"rawmats.message.no_material_list": "Litematica の material list がまだ開かれていない。先に Litematica メニューから開くこと。",
+	"rawmats.message.no_material_list": "Material list も選択中の schematic placement も無い。先に placement を選択すること。",
+	"rawmats.message.generating": "Material list を生成中。完了すると自動で表示される。",
 	"rawmats.message.exported": "原材料リストをファイルに書き出した: %s",
 	"rawmats.message.export_failed": "原材料リストの書き出しに失敗: %s"
 }
