@@ -4,7 +4,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.KeyEvent;
@@ -37,7 +40,8 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
 {
     private final CraftTree tree;
     @Nullable private WidgetCraftMenu popup;
-
+    /** Tab 長押しレシピ表示の lookup キャッシュ (recipe book 全走査を毎フレームしないため)。 */
+    private final Map<Item, Optional<RecipeTooltip>> recipeCache = new HashMap<>();
     public GuiCraftTree(CraftTree tree)
     {
         super(10, 46);
@@ -50,6 +54,15 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
     public CraftTree getTree()
     {
         return this.tree;
+    }
+
+    /** item のレシピツールチップ (Tab 長押し表示用)。レシピが無ければ null。 */
+    @Nullable
+    public RecipeTooltip getRecipeTooltip(Holder<Item> item)
+    {
+        return this.recipeCache
+                .computeIfAbsent(item.value(), it -> Optional.ofNullable(RecipeTooltip.lookup(item)))
+                .orElse(null);
     }
 
     public void reInit()
@@ -188,6 +201,9 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
     @Override
     public void initGui()
     {
+        // コンテナ画面から開いた直後 (作業グリッドの中身が返却された後) でも在庫数が正しくなるよう、
+        // 画面 (再) 構築のたびにインベントリを読み直す。
+        this.tree.refreshAvailable();
         super.initGui();
         this.popup = null;
 

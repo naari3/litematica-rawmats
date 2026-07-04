@@ -863,3 +863,129 @@ cycle が起きている型がログから即特定できる状態になった�
 - choosable な cobblestone は「stonecutter で stone から削ってもらう」という意味で、ユーザー的には
   「いやそんなレシピで作らねえよ」のケースが多いはず。今回は表示自体の消滅を直したのみで、
   「stonecutter 経路の choosable cobblestone を別素材に振り直す UX」は別件。
+
+## 2026-07-04 Tab 長押しレシピ表示 + コンテナ画面からの M+K
+
+### 変更 (ユーザー要望 2 点)
+
+1. リスト内でホバー中の行に対し、Tab を押している間クラフトレシピを表示する。
+2. インベントリ / 作業台などのコンテナ画面を開いたままでも M+K で開けるようにする。
+
+### 実装 (ビルド OK / 実機未検証)
+
+1. Tab 長押しレシピ表示
+   - 新規 `gui/RecipeTooltip.java`。client recipe book (`RecipeBookUtils.getDisplayEntryFromRecipeBook`)
+     から `RecipeDisplay` を引き、材料グリッド (shaped は width×height、shapeless は 3 列詰め、
+     stonecutter/furnace は 1 マス) + `->` + 完成品 (個数は `renderItemDecorations`) を描く。
+   - レシピ選択優先度はツリーの分解 (`CraftNode#chosenEntry`) と同じ crafting > stonecutter > furnace。
+   - 染め直し系 (bed+dye 等) の回避: 出力自身が材料候補に含まれる entry をスキップして代替を使う。
+     Litematica の `MaterialListJsonOverrides#overrideShouldSkipRecipe` (protected で呼べない) の汎用版。
+   - タグ材料スロット (`SlotDisplay.TagSlotDisplay`) は、ユーザーが中クリックで置換済みなら
+     その素材を固定表示、未選択なら候補を 1 秒周期で巡回表示 (vanilla recipe book と同じ見せ方)。
+   - lookup は recipe book 全走査になるため `GuiCraftTree.recipeCache` (Map<Item, Optional<RecipeTooltip>>)
+     に画面インスタンス単位でキャッシュ。
+   - 表示箇所は `WidgetCraftTreeEntry.postRenderHovered`: `KeybindMulti.isKeyDown(KEY_TAB)` で
+     集計ボックスと切替。レシピがある行は集計ボックス下部に灰色ヒント行
+     (`rawmats.gui.label.recipe.hint`) を追加して発見性を確保。
+   - 未開放レシピは recipe book に無いので表示されない (既存の展開と同じ制約、README Notes 通り)。
+
+2. コンテナ画面からの M+K
+   - `Hotkeys.OPEN_RAW_MATERIAL_LIST` の `KeybindSettings` を DEFAULT (Context.INGAME) から
+     Context.ANY に変更 (他パラメータは DEFAULT と同一: PRESS / extra不可 / order敏感 / 非排他 / cancel)。
+     malilib は `MixinKeyboard` → `InputEventHandler.onKeyInput` を Screen のキー処理より前に呼ぶので、
+     cancel=true なら画面側に K が渡らない。
+   - 発火範囲の絞りは `KeyCallbacks.onKeyAction` 側: `GuiUtils.getCurrentScreen()` が
+     null (通常プレイ) か `AbstractContainerScreen` のときだけ処理。それ以外の GUI
+     (チャット・設定画面・自 GUI 等) では false を返してキー入力を素通しする
+     (`KeybindMulti.updateIsPressed` は callback が false なら cancel しない)。
+   - 副作用対策: コンテナ画面から開くと `Minecraft.setScreen` が旧画面の `removed()` を先に呼び、
+     作業グリッド内アイテムがインベントリへ返却される。CraftTree 構築 (在庫読み) はその前なので
+     ずれる → `GuiCraftTree.initGui()` 冒頭で `tree.refreshAvailable()` を呼び直すようにした
+     (`refreshAvailable` は rowsDirty も立てる)。展開クリック毎にも走るが在庫走査は軽量。
+
+### 注意 / 未確認 (要実機)
+
+- 仮説: クリエイティブ検索欄やレシピ本検索欄に高速で "m","k" を同時押し気味に打つと誤発火しうる
+  (コンテナ画面内はテキストフォーカスを見ていない)。実害が出たらフォーカス判定を足す。
+- Tab は malilib GUI のフォーカス移動キーでもある (検索バー展開時)。表示切替はキー状態の
+  ポーリングのみで入力は消費しないため競合しない想定だが、実機で挙動確認すること。
+- shapeless で材料 4 種の場合 3+1 の 2 段表示になる (vanilla の 2x2 表示とは異なるが割り切り)。
+
+## 2026-07-04 Tab レシピ表示が出ない問題の調査 → glfwGetKey ポーリング不信 (26.2)
+
+### 観察 (実機ログ、-Drawmats.debug 診断ログにて)
+
+- DEBUG レベルのログは console (runClient stdout) には出ない。fabric dev の `run/logs/debug.log` にのみ出る。
+  litematica が console に出す `[DEBUG]` は INFO レベルに文字列プレフィックスを付けているだけ。
+- レシピ lookup は正常 (`recipe=true` が iron_ingot / gold_ingot / redstone / slime_ball 等で確認)。
+- `postRenderHovered` も毎ホバーで呼ばれている (診断ログ 83 行)。
+- 問題は Tab 検出: `KeybindMulti.isKeyDown(KEY_TAB)` (= `glfwGetKey`) が、Tab を押しっぱなしに
+  している間 true/false を毎フレーム近く交互に返していた (例: sand で 1 秒間に 6 回反転)。
+  一瞬 true になるフレームでは描画されるが、すぐ false に戻るため人間には「何も出ない」ように見える。
+
+### 仮説 (原因)
+
+MC 26.2 は入力層が KeyEvent ベースに刷新され IME preedit 対応も入っており
+(`KeyboardHandler.submitPreeditEvent` 等)、GLFW のキー状態キャッシュがイベント配送と
+同期しなくなっていると思われる。イベント (keyPressed/keyReleased) は正常なので、
+ポーリングではなくイベント追跡が正解。malilib の `KeybindMulti.reCheckPressedKeys` も
+同じ isKeyDown で PRESSED_KEYS を剪定しているため、押しっぱなし判定は malilib 全体で
+race っぽい (M,K の発火は press イベント駆動なので実用上動く)。
+
+### 修正
+
+- `GuiCraftTree` に `tabHeld` フラグを追加。`onKeyTyped` (press/repeat) で立て、
+  vanilla の Tab フォーカス移動を抑止するため消費。`keyReleased` override (`GuiEventListener`
+  の default、26.2 の `Screen` は keyReleased を持たない) で解除。
+  フォーカス喪失 (Alt+Tab) 時は GLFW が合成 release を配るので取りこぼしなし。
+- `WidgetCraftTreeEntry` は `gui.isTabHeld()` を参照 (KeybindMulti.isKeyDown は使わない)。
+- 診断ログ (`hover tooltip: item/tab/recipe`) は debug ゲートなので残置。
+
+### Esc で元画面に戻す (同日、ユーザー要望)
+
+- コンテナ画面から M+K で開いたとき `gui.setParent(screen)` を設定。malilib `GuiBase` の
+  Esc → `closeGui(true)` → `mc.gui.setScreen(parent)` で元画面に戻る (Shift+Esc は親を出さず閉じる)。
+- 画面切替時は `AbstractContainerScreen.removed()` → `menu.removed(player)` だけで close packet は
+  送られない (bytecode 確認、`onClose()` のみ `closeContainer()` する)。JEI と同じ方式で、
+  戻った後もコンテナは操作可能。実機 OK (ユーザー確認済み)。
+- これに伴い「作業グリッドの返却で在庫がずれる」前提は変わった (グリッドの中身は返却されず
+  menu が生きたまま)。`initGui()` の `refreshAvailable()` は在庫の取り直しとして引き続き有効。
+
+### 訂正 (同日): イベント駆動でも点滅 → release+press ペアが「イベント列そのもの」に来ている
+
+keyPressed/keyReleased 追跡に替えても診断ログは同じ true/false 交互パターンだった
+(sand で ~200ms 間隔の反転)。つまり glfwGetKey が壊れているのではなく、
+押しっぱなし中のキーリピートが「release イベント + press イベントのペア」として
+Minecraft のイベント列に配送されている。
+
+環境調査:
+- PowerToys KeyboardManagerEngine 常駐を確認。ただし remap は VK243/244 (半角/全角) → VK49 のみで
+  Tab は remap されていない。断定はできないが、低レベルフック通過の副作用の可能性は残る。
+- より有力なのは MC 26.2 + LWJGL 3.4.1-snapshot の IME 対応入力パス (KeyboardHandler に
+  preedit 系 API が追加されている) が日本語 IME 環境でリピートを release+press に変換している説。
+- M+K (hotkey) が問題なく動くのは、リピート開始前 (~500ms) の短い操作で完結するため。
+- キーリピート設定: KeyboardDelay=1 (~500ms), KeyboardSpeed=31 (最速 ~33ms 間隔)。
+
+### 修正 (debounce)
+
+`GuiCraftTree.isTabHeld()`: release イベントを即時反映せず、release 後 300ms
+(`TAB_RELEASE_GRACE_MS`、観測反転間隔 ~200ms を覆う) 以内に次の press (リピート) が
+来なければ「離した」と判定。押下側は press/repeat イベントで即 on。副作用は
+「離してから最大 300ms レシピ表示が残る」のみ。Tab の press/release イベント時刻を
+debug ログに出すようにした (パターンの実測用、`tab press/release event at <ms>`)。
+
+### 訂正 (同日): 「phantom release+press ペア」説は誤り → ポーリング実装に差し戻し
+
+- Tab レシピ表示は debounce 版で表示されることをユーザーが確認。ただし表示されなかった
+  本当の理由は入力ではなく「テスト対象の行」だった:
+  - 展開後の原材料リストはほとんどが「レシピを持たない生素材」(bone, soul_sand, sand, string 等) で、
+    ユーザーがマウスを止めて確認していたのは全部この recipe=false の行だった (仕様どおり集計ボックスのまま)。
+  - recipe=true の行 (gold_ingot 等) は Tab を押しながら高速通過しただけで視認できていなかった。
+- イベント実測 (tab press/release ログ) で入力列はクリーンと判明: release → 67〜168ms 後の press は
+  高速な押し直し、その後 500ms の初回リピート遅延 → 33ms 間隔のリピート、という人間の操作そのもの。
+  診断ログの true/false 交互パターンは Tab「連打」を正しく拾っていただけ。
+  glfwGetKey ポーリング不信説・IME/LWJGL 入力パス説はいずれも根拠を失ったため撤回。
+- ユーザー指示により最初の実装に差し戻し: `WidgetCraftTreeEntry` で
+  `KeybindMulti.isKeyDown(KEY_TAB)` をポーリング。GuiCraftTree の tabHeld 追跡・
+  keyReleased override・debounce・診断ログ (hover tooltip / tab press/release) は全て削除。
+- 残った教訓: DEBUG レベルのログは console に出ず `run/logs/debug.log` にのみ出る (診断時はそちらを見る)。

@@ -10,8 +10,10 @@ import fi.dy.masa.malilib.gui.button.ButtonBase;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
 import fi.dy.masa.malilib.gui.button.IButtonActionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetListEntrySortable;
+import fi.dy.masa.malilib.hotkeys.KeybindMulti;
 import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.render.RenderUtils;
+import fi.dy.masa.malilib.util.KeyCodes;
 import fi.dy.masa.malilib.util.StringUtils;
 import fi.dy.masa.litematica.gui.Icons;
 
@@ -281,6 +283,15 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
             return;
         }
 
+        // Tab 長押し: 集計ボックスの代わりにクラフトレシピを表示する。
+        RecipeTooltip recipe = this.listWidget.getGui().getRecipeTooltip(this.row.item);
+
+        if (recipe != null && KeybindMulti.isKeyDown(KeyCodes.KEY_TAB))
+        {
+            recipe.render(ctx, mouseX, mouseY, this.width, this.listWidget.getTree());
+            return;
+        }
+
         String hItem    = GuiBase.TXT_BOLD + StringUtils.translate(HEADERS[0]);
         String hTotal   = GuiBase.TXT_BOLD + StringUtils.translate(HEADERS[1]);
         String hMissing = GuiBase.TXT_BOLD + StringUtils.translate(HEADERS[2]);
@@ -293,6 +304,8 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
         String sMissing = this.getFormattedCountString(this.row.need, maxStack);
         String sAvail   = this.getFormattedCountString(this.row.have, maxStack);
 
+        String hint = recipe != null ? StringUtils.translate("rawmats.gui.label.recipe.hint") : null;
+
         int w1 = Math.max(this.getStringWidth(hItem),
                  Math.max(this.getStringWidth(hTotal),
                  Math.max(this.getStringWidth(hMissing), this.getStringWidth(hAvail))));
@@ -301,6 +314,12 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
                  Math.max(this.getStringWidth(sMissing), this.getStringWidth(sAvail))));
         int boxWidth = w1 + w2 + 60;
         int boxHeight = 76;
+
+        if (hint != null)
+        {
+            boxWidth = Math.max(boxWidth, this.getStringWidth(hint) + 20);
+            boxHeight += 14;
+        }
 
         int x = mouseX + 10;
         int y = mouseY - 10;
@@ -329,6 +348,12 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
         y += 16;
         this.drawString(ctx, x1, y, 0xFFFFFFFF, hAvail);
         this.drawString(ctx, x2, y, 0xFFFFFFFF, sAvail);
+
+        if (hint != null)
+        {
+            y += 16;
+            this.drawString(ctx, x1, y, 0xFF909090, hint);
+        }
 
         RenderUtils.drawRect(ctx, x2, yIcon, 16, 16, 0x20FFFFFF);
         ctx.renderItem(stack, x2, yIcon);
