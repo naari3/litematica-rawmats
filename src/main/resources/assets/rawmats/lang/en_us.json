@@ -23,7 +23,8 @@
 	"rawmats.gui.label.abbr.shulker_box": "SB",
 	"rawmats.gui.menu.expand": "Expand",
 	"rawmats.gui.menu.fold_into": "Fold into %s",
-	"rawmats.message.no_material_list": "No Litematica material list is open yet. Open one from the Litematica menu first.",
+	"rawmats.message.no_material_list": "No material list and no schematic placement selected. Select a placement first.",
+	"rawmats.message.generating": "Generating the material list. It will show up automatically when done.",
 	"rawmats.message.exported": "Raw material list written to file: %s",
 	"rawmats.message.export_failed": "Failed to export raw material list: %s"
 }
