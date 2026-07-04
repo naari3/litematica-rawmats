@@ -152,6 +152,7 @@ public class CraftTree
     public void refreshAvailable()
     {
         this.available.clear();
+        this.rowsDirty = true;
         Player player = Minecraft.getInstance().player;
 
         if (player == null)

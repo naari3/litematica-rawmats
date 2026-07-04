@@ -32,13 +32,14 @@ When a recipe accepts a tag (any planks, any log), you choose which item to coun
 
 ## Usage
 
-Press `M + K` to open the raw-material list. It uses the most recently opened Litematica material list; if none is open yet, it is generated automatically from the currently selected schematic placement (same as Litematica's `M + L`).
+Press `M + K` to open the raw-material list. It uses the most recently opened Litematica material list; if none is open yet, it is generated automatically from the currently selected schematic placement (same as Litematica's `M + L`). The hotkey also works while a container screen is open (inventory, crafting table, chest).
 
 Inside the list:
 
 - **Left-click** a row to expand it into its ingredients.
 - **Right-click** a row to fold it back into the crafted item.
 - **Middle-click** a tag row to pick which item to use.
+- **Hold Tab** while hovering a row to see its crafting recipe.
 
 Press `M + J` to open the settings screen, where you can rebind both keys.
 

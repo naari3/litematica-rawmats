@@ -1,6 +1,8 @@
 package io.github.naari3.rawmats.event;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
 import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.gui.Message.MessageType;
@@ -50,6 +52,16 @@ public class KeyCallbacks implements IHotkeyCallback
             return false;
         }
 
+        // M+K は Context.ANY (Hotkeys.ANY_CONTEXT) なので GUI 内でもここに来る。
+        // 発火はコンテナ画面 (インベントリ/作業台/チェスト等) に限定し、
+        // それ以外の GUI (チャット・設定画面等) では false を返してキー入力を素通しする。
+        Screen screen = GuiUtils.getCurrentScreen();
+
+        if (screen != null && !(screen instanceof AbstractContainerScreen<?>))
+        {
+            return false;
+        }
+
         // 直近に開かれた Litematica material list を元ネタにする。
         // 無ければ選択中の placement から自動生成する (Litematica の M+L と同じ流れ)。
         MaterialListBase source = DataManager.getMaterialList();
@@ -80,6 +92,11 @@ public class KeyCallbacks implements IHotkeyCallback
         CraftTreeState state = CraftTreeStore.get(source);
         CraftTree tree = new CraftTree(source, state);
         GuiCraftTree gui = new GuiCraftTree(tree);
+
+        // コンテナ画面から開いた場合、Esc で元の画面に戻す (JEI と同じ方式)。
+        // 画面切替では AbstractContainerScreen.removed() が呼ばれるだけで close packet は
+        // 送られない (onClose() だけが closeContainer() する) ので、menu は生きたまま戻せる。
+        gui.setParent(screen);
 
         if (source.getMaterialsAll().isEmpty())
         {
