@@ -174,7 +174,13 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
             return false;
         }
 
-        // 左クリック = 展開、右クリック = 親へ畳む、中クリック = タグ材料の素材選択
+        // 左クリック = 展開、右クリック = 親へ畳む (Shift+右 = 除外)、中クリック = タグ材料の素材選択
+        if (click.input() == 1 && GuiBase.isShiftDown())
+        {
+            this.listWidget.getGui().ignoreRow(this.row);
+            return true;
+        }
+
         if (click.input() == 0 && this.row.expandable)
         {
             this.listWidget.getGui().expandRow(this.row);

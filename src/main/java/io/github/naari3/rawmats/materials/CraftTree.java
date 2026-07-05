@@ -145,6 +145,9 @@ public class CraftTree
     /** 書き出し用: source の表示タイトル。 */
     public String getSourceTitle() { return this.source != null ? this.source.getTitle() : ""; }
 
+    /** 書き出し用: ベイク済み root ノード群 (schematic 直材)。 */
+    public List<CraftNode> getRoots() { return this.roots; }
+
     /** 書き出し用: タグ材料の置換選択 (タグ -> 具体素材)。ユーザーが選んだものだけ含む。 */
     public Map<TagKey<Item>, Holder<Item>> getMaterialOverrides() { return this.state.materialOverride; }
 
@@ -268,6 +271,9 @@ public class CraftTree
 
     public boolean isExpandable(Item it) { return this.expandableTypes.contains(it) && !this.state.expanded.contains(it); }
 
+    /** 型 it が現在展開中か (分解して表示する対象か)。 */
+    public boolean isExpandedType(Item it) { return this.expandableTypes.contains(it) && this.state.expanded.contains(it); }
+
     public void expand(Item it)   { if (this.expandableTypes.contains(it)) { this.state.expanded.add(it); this.rowsDirty = true; } }
     public void collapse(Item it) { this.state.expanded.remove(it); this.rowsDirty = true; }
     public void expandAll()       { this.state.expanded.addAll(this.expandableTypes); this.rowsDirty = true; }
@@ -295,6 +301,11 @@ public class CraftTree
     }
 
     public void ignore(Item it)    { this.state.ignored.add(it); this.rowsDirty = true; }
+    public void unignore(Item it)  { this.state.ignored.remove(it); this.rowsDirty = true; }
+    public boolean isIgnored(Item it) { return this.state.ignored.contains(it); }
+
+    /** 除外中の型の一覧 (表示用スナップショット)。 */
+    public List<Item> getIgnored() { return new ArrayList<>(this.state.ignored); }
     public void clearIgnored()     { this.state.ignored.clear(); this.rowsDirty = true; }
     public boolean hasIgnored()    { return !this.state.ignored.isEmpty(); }
 
@@ -335,32 +346,44 @@ public class CraftTree
     }
 
     /**
-     * 現在の展開状態 + 在庫ネットで、フラットな表示行を計算する。
+     * 在庫ネット分解パスの結果。フラット表示行 ({@link #getDisplayRows}) と
+     * グラフ/手順表示 ({@link CraftSteps}, GuiCraftDag) の共通の元データ。
+     */
+    public static final class NetPass
+    {
+        /** frontier (集める/充足で展開停止) の型 -> 総需要。 */
+        public final LinkedHashMap<Item, Long> frontierGross = new LinkedHashMap<>();
+        /** タグ材料 (素材変更可能) の型 -> 代表ノード。 */
+        public final Map<Item, CraftNode> choosable = new HashMap<>();
+        /** 分解を実行した型 -> 内訳。挿入順 = 親→子 topo の処理順 (逆順にすると素材先)。 */
+        public final LinkedHashMap<Item, Crafted> crafted = new LinkedHashMap<>();
+
+        /** gross = 総需要、toCraft = 在庫ネット後に実際にクラフトする数、childCounts = その材料の型別数。 */
+        public record Crafted(Holder<Item> item, long gross, long toCraft, LinkedHashMap<Item, Long> childCounts) {}
+    }
+
+    /**
+     * 現在の展開状態 + 在庫ネットの分解パス。
      *
      * グローバル集計方式: 展開対象の型を親→子の topo 順で処理し、各型の「総需要」を一度だけ在庫ネットして
      * 不足分を一度だけ分解する。これにより
      *  - 在庫引き当ては型ごとにグローバル (DFS 到達順に依存しない)、
      *  - 中間素材のバッチ切り上げが出現ごとでなく総量に対して1回だけ (過大計上を回避)。
      */
-    public List<MatRow> getDisplayRows()
+    public NetPass computeNetPass()
     {
-        if (!this.rowsDirty && this.cachedRows != null)
-        {
-            return this.cachedRows;
-        }
-
+        NetPass out = new NetPass();
         Object2IntOpenHashMap<Item> stock = new Object2IntOpenHashMap<>(this.available);
         // 展開対象 (expanded ∩ expandable) の型 -> まだ分解していない総需要、と代表ノード (分解時の parent/recipe 用)。
         Map<Item, Long> pendingGross = new HashMap<>();
         Map<Item, CraftNode> repNode = new HashMap<>();
-        // frontier (集める単位) の型 -> 総需要、と choosable 代表ノード。
-        LinkedHashMap<Item, Long> frontierGross = new LinkedHashMap<>();
-        Map<Item, CraftNode> choosable = new HashMap<>();
+        // topo で処理済みの型。循環検出 (分解先が処理済みしか無い = 巻き戻しの分解) に使う。
+        Set<Item> processed = new HashSet<>();
 
         // seed: schematic 直材。
         for (CraftNode r : this.roots)
         {
-            this.addGross(r, r.count, pendingGross, repNode, frontierGross, choosable);
+            this.addGross(r, r.count, pendingGross, repNode, out.frontierGross, out.choosable);
         }
 
         // 展開対象を親→子の順で処理。各型の総需要を1回だけ在庫ネット + 分解する。
@@ -380,6 +403,7 @@ public class CraftTree
 
             long gross = g;
             pendingGross.put(x, 0L); // 処理済みマーク (この loop 内で cycle 経由 + される分は後段で拾う)
+            processed.add(x);
             int have = stock.getInt(x);
             long toCraft = Math.max(0L, gross - have);
             CraftNode rep = repNode.get(x);
@@ -387,11 +411,11 @@ public class CraftTree
             if (toCraft <= 0 || rep == null)
             {
                 // 完全充足 → 展開停止。covered な frontier 行として出す (緑「0 (在庫)」)。
-                frontierGross.merge(x, gross, Long::sum);
+                out.frontierGross.merge(x, gross, Long::sum);
 
                 if (rep != null && rep.isChoosable())
                 {
-                    choosable.putIfAbsent(x, rep);
+                    out.choosable.putIfAbsent(x, rep);
                 }
                 continue;
             }
@@ -407,21 +431,53 @@ public class CraftTree
                 Reference.LOGGER.debug("[rawmats] re-decomposition produced no children for {} (prev={}); keeping as leaf",
                         BuiltInRegistries.ITEM.getKey(rep.item.value()),
                         rep.parentItem != null ? BuiltInRegistries.ITEM.getKey(rep.parentItem.value()) : "<root>");
-                frontierGross.merge(x, gross, Long::sum);
+                out.frontierGross.merge(x, gross, Long::sum);
 
                 if (rep.isChoosable())
                 {
-                    choosable.putIfAbsent(x, rep);
+                    out.choosable.putIfAbsent(x, rep);
+                }
+                continue;
+            }
+
+            // 分解先の全てが「処理済みの展開型」しか無い場合 (stone↔cobblestone のような型循環を
+            // 巻き戻すだけの分解)、需要が residual として戻ってくるだけで意味がない。
+            // この型を「集める葉」として確定する = 循環チェーンの起点が frontier に立つ。
+            boolean cycleOnly = true;
+
+            for (CraftNode c : decomposed.children)
+            {
+                if (!processed.contains(c.item.value()))
+                {
+                    cycleOnly = false;
+                    break;
+                }
+            }
+
+            if (cycleOnly)
+            {
+                Reference.LOGGER.debug("[rawmats] decomposition of {} only feeds already-processed cycle types; keeping as leaf",
+                        BuiltInRegistries.ITEM.getKey(x));
+                out.frontierGross.merge(x, gross, Long::sum);
+
+                if (rep.isChoosable())
+                {
+                    out.choosable.putIfAbsent(x, rep);
                 }
                 continue;
             }
 
             stock.addTo(x, -(int) Math.min(have, gross)); // 在庫を消費 (子の処理で参照される)
 
+            LinkedHashMap<Item, Long> childCounts = new LinkedHashMap<>();
+
             for (CraftNode c : decomposed.children)
             {
-                this.addGross(c, c.count, pendingGross, repNode, frontierGross, choosable);
+                childCounts.merge(c.item.value(), (long) c.count, Long::sum);
+                this.addGross(c, c.count, pendingGross, repNode, out.frontierGross, out.choosable);
             }
+
+            out.crafted.put(x, new NetPass.Crafted(rep.item, gross, toCraft, childCounts));
         }
 
         // 型 DAG cycle の救済: topo 1 回処理で消費されずに残った pending 量 (cycle 内 type で
@@ -438,14 +494,29 @@ public class CraftTree
             Item x = en.getKey();
             Reference.LOGGER.debug("[rawmats] unprocessed pending residual {} = {} after topo (cycle); treating as leaf",
                     BuiltInRegistries.ITEM.getKey(x), gross);
-            frontierGross.merge(x, gross, Long::sum);
+            out.frontierGross.merge(x, gross, Long::sum);
             CraftNode rep = repNode.get(x);
 
             if (rep != null && rep.isChoosable())
             {
-                choosable.putIfAbsent(x, rep);
+                out.choosable.putIfAbsent(x, rep);
             }
         }
+
+        return out;
+    }
+
+    /** 現在の展開状態 + 在庫ネットで、フラットな表示行を計算する ({@link #computeNetPass} の frontier を行に整形)。 */
+    public List<MatRow> getDisplayRows()
+    {
+        if (!this.rowsDirty && this.cachedRows != null)
+        {
+            return this.cachedRows;
+        }
+
+        NetPass pass = this.computeNetPass();
+        LinkedHashMap<Item, Long> frontierGross = pass.frontierGross;
+        Map<Item, CraftNode> choosable = pass.choosable;
 
         // frontier を在庫ネットして行に。
         List<MatRow> rows = new ArrayList<>();
@@ -491,6 +562,8 @@ public class CraftTree
         // ignore = その素材と、そこから派生する原料需要をリストから除外する (#7)。
         // 需要の流入は root seed / 分解の子ともすべてここを通るので、この 1 箇所で
         // pending (分解対象) にも frontier (表示行) にも積まれなくなる。
+        // 成果物/中間素材を除外した場合はそこから下の材料需要も丸ごと消える
+        // (他の親が同じ素材を要求する分は残る)。
         if (this.state.ignored.contains(it))
         {
             return;
