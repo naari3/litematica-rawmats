@@ -8,6 +8,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.Nullable;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 
@@ -38,6 +39,8 @@ import io.github.naari3.rawmats.Reference;
  *   (出現ごとの過大計上を回避)。完全充足の展開対象は展開停止 (covered)。
  * - 畳み (collapse): frontier 素材 I は「I を直接の子に持つ展開中の親 P」由来。collapse(P) で P を畳み戻す。
  *   I を畳む候補 = {@link #getCollapseCandidates}。
+ * - ignore: その素材と、そこから派生する原料需要を集計から除外する ({@link #addGross} で遮断)。
+ *   Clear ignored で全解除。
  */
 public class CraftTree
 {
@@ -63,15 +66,62 @@ public class CraftTree
     /** 表示の並べ替え列 (本家 GuiMaterialList と同じ4列)。状態は {@link CraftTreeState} 側でセッション保持。 */
     public enum SortColumn { NAME, TOTAL, MISSING, AVAILABLE }
 
+    /** rebuild の入力: 直材 1 種の必要数 (倍率適用前)。source 非依存の投入 (テスト等) にも使う。 */
+    public record Demand(Holder<Item> item, int count) {}
+
+    /**
+     * (item, count, parent) を再帰展開済みの {@link CraftNode} ツリーに分解する関数。
+     * production は {@link MaterialListJsonBase} 実装 (client の recipe book に依存し、
+     * 実クライアント無しでは動かない)。テストは fake レシピテーブル実装を注入する。
+     */
+    @FunctionalInterface
+    public interface Decomposer
+    {
+        CraftNode decompose(Holder<Item> item, int count, @Nullable Holder<Item> parent, int depth);
+    }
+
+    private final Decomposer decomposer;
+    /** 直近の rebuild 入力 (倍率適用前)。source 無しでも倍率変更等で再構築できるよう保持。 */
+    private List<Demand> demands;
+
     public CraftTree(MaterialListBase source, CraftTreeState state)
     {
         this.state = state;
+        this.decomposer = this::decomposeWithRecipeBook;
         this.rebuild(source);
+    }
+
+    /** テスト用: litematica の source に依存せず、需要リストと分解関数から構築する。 */
+    public CraftTree(List<Demand> demands, CraftTreeState state, Decomposer decomposer)
+    {
+        this.state = state;
+        this.decomposer = decomposer;
+        this.rebuildFromDemands(demands);
+    }
+
+    private CraftNode decomposeWithRecipeBook(Holder<Item> item, int count, @Nullable Holder<Item> parent, int depth)
+    {
+        MaterialListJsonBase base = new MaterialListJsonBase(item, count, parent, this.craftingOnly);
+        return CraftNode.fromBase(base, depth, this.state.materialOverride, this.craftingOnly);
     }
 
     public void rebuild(MaterialListBase source)
     {
         this.source = source;
+        List<Demand> list = new ArrayList<>();
+
+        for (MaterialListEntry e : source.getMaterialsAll())
+        {
+            list.add(new Demand(e.getStack().typeHolder(), e.getStack().getCount() * e.getCountTotal()));
+        }
+
+        this.rebuildFromDemands(list);
+    }
+
+    /** 需要リスト (倍率適用前) からツリーを構築する。倍率はここで適用する。 */
+    public void rebuildFromDemands(List<Demand> demands)
+    {
+        this.demands = List.copyOf(demands);
         this.roots.clear();
         this.expandableTypes.clear();
         this.childToParents.clear();
@@ -79,12 +129,9 @@ public class CraftTree
 
         int mult = Math.max(1, this.state.multiplier);
 
-        for (MaterialListEntry e : source.getMaterialsAll())
+        for (Demand d : this.demands)
         {
-            Holder<Item> item = e.getStack().typeHolder();
-            int total = e.getStack().getCount() * e.getCountTotal() * mult;
-            MaterialListJsonBase base = new MaterialListJsonBase(item, total, null, this.craftingOnly);
-            CraftNode node = CraftNode.fromBase(base, 0, this.state.materialOverride, this.craftingOnly);
+            CraftNode node = this.decomposer.decompose(d.item(), d.count() * mult, null, 0);
             this.roots.add(node);
             this.indexNode(node);
         }
@@ -109,11 +156,7 @@ public class CraftTree
         if (clamped != this.state.multiplier)
         {
             this.state.multiplier = clamped;
-
-            if (this.source != null)
-            {
-                this.rebuild(this.source);
-            }
+            this.rebuildFromCurrentInput();
         }
     }
 
@@ -121,10 +164,19 @@ public class CraftTree
     public void chooseMaterial(TagKey<Item> key, Holder<Item> item)
     {
         this.state.materialOverride.put(key, item);
+        this.rebuildFromCurrentInput();
+    }
 
+    /** source があれば source から (直材を再読込)、無ければ保持している需要リストから再構築する。 */
+    private void rebuildFromCurrentInput()
+    {
         if (this.source != null)
         {
             this.rebuild(this.source);
+        }
+        else if (this.demands != null)
+        {
+            this.rebuildFromDemands(this.demands);
         }
     }
 
@@ -153,7 +205,8 @@ public class CraftTree
     {
         this.available.clear();
         this.rowsDirty = true;
-        Player player = Minecraft.getInstance().player;
+        Minecraft mc = Minecraft.getInstance();
+        Player player = mc != null ? mc.player : null;
 
         if (player == null)
         {
@@ -169,6 +222,9 @@ public class CraftTree
     }
 
     public int availableFor(Holder<Item> item) { return this.available.getInt(item.value()); }
+
+    /** テスト用: プレイヤーインベントリの代わりに在庫を直接設定する ({@link #refreshAvailable} で消える)。 */
+    void setAvailableForTest(Item item, int count) { this.available.put(item, count); this.rowsDirty = true; }
 
     /**
      * デバッグ用: ベイク済みツリー構造 + フラット表示行をログに出す (Expand all 押下時に呼ばれる)。
@@ -341,8 +397,7 @@ public class CraftTree
             }
 
             // 不足分 toCraft を一度だけ分解 (レシピ収量の切り上げが総量に対して1回)。
-            MaterialListJsonBase rebuilt = new MaterialListJsonBase(rep.item, (int) toCraft, rep.parentItem, this.craftingOnly);
-            CraftNode decomposed = CraftNode.fromBase(rebuilt, rep.depth, this.state.materialOverride, this.craftingOnly);
+            CraftNode decomposed = this.decomposer.decompose(rep.item, (int) toCraft, rep.parentItem, rep.depth);
 
             // 再分解で展開可能な子が無いケース (Stone の smelting レシピ ingredient が prev と一致して
             // MaterialListJsonBase の checkIfLoop が発火 → materialsRemaining 落ち、fromBase の追跡対象から外れる)。
@@ -426,12 +481,20 @@ public class CraftTree
         return rows;
     }
 
-    /** 需要 qty を、展開対象なら pending に、そうでなければ frontier に積む。 */
+    /** 需要 qty を、展開対象なら pending に、そうでなければ frontier に積む。ignore 済みなら需要ごと捨てる。 */
     private void addGross(CraftNode node, long qty,
             Map<Item, Long> pendingGross, Map<Item, CraftNode> repNode,
             Map<Item, Long> frontierGross, Map<Item, CraftNode> choosable)
     {
         Item it = node.item.value();
+
+        // ignore = その素材と、そこから派生する原料需要をリストから除外する (#7)。
+        // 需要の流入は root seed / 分解の子ともすべてここを通るので、この 1 箇所で
+        // pending (分解対象) にも frontier (表示行) にも積まれなくなる。
+        if (this.state.ignored.contains(it))
+        {
+            return;
+        }
 
         if (this.state.expanded.contains(it) && this.expandableTypes.contains(it))
         {

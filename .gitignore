@@ -26,3 +26,6 @@ __pycache__/
 
 # Scratch dir
 tmp/
+
+# fabric-loader-junit がテスト実行時に吐くログ
+logs/

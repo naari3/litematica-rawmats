@@ -34,6 +34,14 @@ dependencies {
 	//   modImplementation へ切替えるか、run/mods に両 jar を配置する。
 	implementation "fi.dy.masa.malilib:malilib-fabric-${project.minecraft_version_out}:${project.malilib_version}"
 	implementation "fi.dy.masa.litematica:litematica-fabric-${project.minecraft_version_out}:${project.litematica_version}"
+
+	// ユニットテスト。fabric-loader-junit が fabric 環境下で JUnit を起動し、
+	// Minecraft クラス + registry bootstrap (SharedConstants/Bootstrap) をテストから使えるようにする。
+	testImplementation "net.fabricmc:fabric-loader-junit:${project.fabric_loader_version}"
+}
+
+test {
+	useJUnitPlatform()
 }
 
 loom {

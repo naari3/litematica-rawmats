@@ -989,3 +989,42 @@ debug ログに出すようにした (パターンの実測用、`tab press/rele
   `KeybindMulti.isKeyDown(KEY_TAB)` をポーリング。GuiCraftTree の tabHeld 追跡・
   keyReleased override・debounce・診断ログ (hover tooltip / tab press/release) は全て削除。
 - 残った教訓: DEBUG レベルのログは console に出ず `run/logs/debug.log` にのみ出る (診断時はそちらを見る)。
+
+## 2026-07-05 ignore の需要伝播カット (#7) + ユニットテスト基盤
+
+### 問題 (issue #7)
+
+最終形態に近いアイテム (oak trapdoor / sign / fence gate 等) を ignore しても、
+expand all 後の原料 (oak log 等) の必要数に反映されなかった。原因は
+`getDisplayRows()` が `state.ignored` を frontier 行の出力段でしか見ておらず、
+需要集計 (seed → pending → 分解 → frontier) には ignore が一切効いていなかったこと。
+`expandAll()` は ignore 済みの型も展開対象に含めるため、ignore した型の需要は
+子へ分解されて原料行に合算され、その型自身の行だけが隠れていた。
+
+### 修正
+
+- ignore の意味を「行を隠す」から「その素材と、そこから派生する原料需要を集計から除外する」に変更。
+  `addGross()` の入口で `state.ignored` に含まれる型の需要を捨てる。需要の流入
+  (root seed / 分解の子) はすべてここを通るので 1 箇所で全経路に効く。cycle 残渣の
+  frontier 逃がしは pendingGross 由来 (= addGross 通過済み) なので追加の遮断は不要。
+- 行出力段の既存フィルタは保険として残した。
+- 副次効果として、中間素材 (planks 等) を ignore するとその先 (log) への伝播も止まる。
+  「その素材は別途用意するので原料は不要」という解釈で一貫させた。
+  ignore された型は pending に入らないため、在庫の引き当ても発生しない。
+
+### ユニットテスト基盤 (新規)
+
+- `build.gradle` に `testImplementation "net.fabricmc:fabric-loader-junit"` + `useJUnitPlatform()`。
+  fabric-loader-junit 経由で Minecraft クラスと registry bootstrap
+  (`SharedConstants.tryDetectVersion()` → `Bootstrap.bootStrap()` を `@BeforeAll` で) が使える。
+- 分解は litematica の `MaterialListJsonBase` 直呼びだったが、これは malilib の
+  RecipeBookUtils 経由で「実行中クライアントの recipe book」に依存しユニットテスト不能。
+  そこで分解関数を `CraftTree.Decomposer` (item, count, parent, depth → CraftNode) として抽出し、
+  production は従来実装 (`decomposeWithRecipeBook`)、テストはバニラ相当の fake レシピテーブルを注入。
+- `rebuild(MaterialListBase)` を「直材需要リスト (`Demand`) の抽出」+「`rebuildFromDemands`」に分離。
+  テストは `new CraftTree(List<Demand>, state, decomposer)` で source (litematica) 非依存に構築できる。
+  倍率は `rebuildFromDemands` 内で適用し、source 無しでも `setMultiplier` が機能する。
+- `refreshAvailable()` は `Minecraft.getInstance()` が null (テスト環境) でも落ちないようガード。
+  在庫はテストからは package-private の `setAvailableForTest` で注入。
+- テスト: `CraftTreeIgnoreTest` (6 件)。バグ再現 (全消費元 ignore → 原料行ゼロ)、部分 ignore、
+  frontier ignore の回帰、中間素材 ignore の伝播停止、倍率+在庫ネット、ignore 型在庫の非消費。
