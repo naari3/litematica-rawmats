@@ -26,7 +26,6 @@ public class CraftNode
     public final int count;
     public final int depth;
     public final List<CraftNode> children = new ArrayList<>();
-    public boolean expanded = false;
 
     /** タグ材料 (any planks 等) 由来のとき、その置換キー (タグ)。具体材料由来なら null。 */
     @Nullable public TagKey<Item> choiceKey;
@@ -51,14 +50,6 @@ public class CraftNode
     public boolean isChoosable()
     {
         return this.choiceKey != null && this.choices != null && this.choices.size() > 1;
-    }
-
-    public void toggle()
-    {
-        if (this.isExpandable())
-        {
-            this.expanded = !this.expanded;
-        }
     }
 
     /**

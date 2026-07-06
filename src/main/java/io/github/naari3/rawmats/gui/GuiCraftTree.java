@@ -16,6 +16,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
 
+import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.gui.GuiListBase;
 import fi.dy.masa.malilib.gui.GuiTextFieldInteger;
 import fi.dy.masa.malilib.gui.Message.MessageType;
@@ -40,6 +41,8 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
 {
     private final CraftTree tree;
     @Nullable private WidgetCraftMenu popup;
+    /** 「除外中」ボタンの位置 (除外一覧メニューのアンカー)。 */
+    private int ignoredBtnX, ignoredBtnY;
     /** Tab 長押しレシピ表示の lookup キャッシュ (recipe book 全走査を毎フレームしないため)。 */
     private final Map<Item, Optional<RecipeTooltip>> recipeCache = new HashMap<>();
     public GuiCraftTree(CraftTree tree)
@@ -135,13 +138,13 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
     /** ポップアップメニューを画面内にクランプして表示する。 */
     private void openPopup(List<WidgetCraftMenu.Entry> entries, int mouseX, int mouseY)
     {
-        WidgetCraftMenu menu = new WidgetCraftMenu(mouseX, mouseY, entries, this);
+        WidgetCraftMenu menu = new WidgetCraftMenu(mouseX, mouseY, entries, this::onMenuActionDone);
         int px = Math.min(mouseX, this.getScreenWidth() - menu.getWidth() - 4);
         int py = Math.min(mouseY, this.getScreenHeight() - menu.getHeight() - 4);
 
         if (px != mouseX || py != mouseY)
         {
-            menu = new WidgetCraftMenu(Math.max(2, px), Math.max(2, py), entries, this);
+            menu = new WidgetCraftMenu(Math.max(2, px), Math.max(2, py), entries, this::onMenuActionDone);
         }
 
         this.popup = menu;
@@ -150,6 +153,37 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
     public boolean hasPopup()
     {
         return this.popup != null;
+    }
+
+    /**
+     * 除外中アイテムの一覧メニュー (「除外中」ボタン直下に固定表示)。
+     * クリックで個別に解除し、残があればメニューを開き直す (連続解除できる)。
+     */
+    public void openIgnoredMenu()
+    {
+        List<Item> ignored = this.tree.getIgnored();
+
+        if (ignored.isEmpty())
+        {
+            this.popup = null;
+            return;
+        }
+
+        List<WidgetCraftMenu.Entry> entries = new ArrayList<>();
+
+        for (Item it : ignored)
+        {
+            Holder<Item> holder = BuiltInRegistries.ITEM.wrapAsHolder(it);
+            entries.add(new WidgetCraftMenu.Entry(holder, () -> this.tree.unignore(it)));
+        }
+
+        this.popup = new WidgetCraftMenu(this.ignoredBtnX, this.ignoredBtnY + 22, entries, this::onIgnoredMenuDone);
+    }
+
+    private void onIgnoredMenuDone()
+    {
+        this.reInit(); // ボタン (除外数) と行を更新。popup も一旦消える
+        this.openIgnoredMenu(); // 残があれば開き直す
     }
 
     public void onMenuActionDone()
@@ -161,13 +195,34 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
     /** 現在の買い物リストを Litematica config フォルダ配下にプレーンテキストで書き出し、チャットに開けるリンクを出す。 */
     public void exportToFile()
     {
+        this.writeExportFile("raw_material_list_", ".txt", CraftListExport.render(this.tree));
+    }
+
+    /** レシピツリー画面 (左→右の家系図表示) を開く。Esc でこのリストに戻る。 */
+    public void openGraph()
+    {
+        GuiCraftGraph gui = new GuiCraftGraph(this.tree);
+        gui.setParent(this);
+        GuiBase.openGui(gui);
+    }
+
+    /** クラフトフロー (種別マージ DAG のグラフ) を開く。Esc でこのリストに戻る。 */
+    public void openFlow()
+    {
+        GuiCraftDag gui = new GuiCraftDag(this.tree);
+        gui.setParent(this);
+        GuiBase.openGui(gui);
+    }
+
+    private void writeExportFile(String prefix, String ext, String content)
+    {
         Path dir = FileUtils.getConfigDirectory().resolve(Reference.MOD_ID);
-        Path file = dir.resolve("raw_material_list_" + TimeFormat.REGULAR.formatNow() + ".txt");
+        Path file = dir.resolve(prefix + TimeFormat.REGULAR.formatNow() + ext);
 
         try
         {
             Files.createDirectories(dir);
-            Files.writeString(file, CraftListExport.render(this.tree));
+            Files.writeString(file, content);
         }
         catch (IOException e)
         {
@@ -218,6 +273,13 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         if (this.tree.hasIgnored())
         {
             x += this.addButton(x, y, ButtonType.CLEAR_IGNORED) + gap;
+
+            // 除外中の一覧メニューを開くボタン。メニューのアンカーに位置を控える。
+            String label = StringUtils.translate("rawmats.gui.button.ignored", this.tree.getIgnored().size());
+            ButtonGeneric ignored = new ButtonGeneric(x, y, -1, 20, label);
+            this.ignoredBtnX = x;
+            this.ignoredBtnY = y;
+            x += this.addButton(ignored, new Listener(ButtonType.IGNORED, this)).getWidth() + gap;
         }
 
         // 本家 GuiMaterialList に寄せて右上に倍率入力を置く。
@@ -232,7 +294,9 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         // 下部: 書き出しボタン + 集計情報 (本家 GuiMaterialList の下部レイアウトに寄せる)。
         int by = this.getScreenHeight() - 26;
         int bx = 12;
-        bx += this.addButton(bx, by, ButtonType.EXPORT) + gap + 6;
+        bx += this.addButton(bx, by, ButtonType.EXPORT) + gap;
+        bx += this.addButton(bx, by, ButtonType.GRAPH) + gap;
+        bx += this.addButton(bx, by, ButtonType.FLOW) + gap + 6;
         this.addSummaryLabel(bx, by + 6);
     }
 
@@ -323,8 +387,11 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         COLLAPSE_ALL   ("rawmats.gui.button.collapse_all"),
         EXPAND_ALL     ("rawmats.gui.button.expand_all"),
         EXPORT         ("rawmats.gui.button.export"),
+        GRAPH          ("rawmats.gui.button.graph"),
+        FLOW           ("rawmats.gui.button.flow"),
         HIDE_AVAILABLE ("rawmats.gui.button.hide_available"),
-        CLEAR_IGNORED  ("rawmats.gui.button.clear_ignored");
+        CLEAR_IGNORED  ("rawmats.gui.button.clear_ignored"),
+        IGNORED        ("rawmats.gui.button.ignored");
 
         private final String key;
 
@@ -367,11 +434,23 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         {
             switch (this.type)
             {
-                case EXPAND_ALL     -> { this.parent.tree.expandAll(); this.parent.tree.logStructure(); }
+                case EXPAND_ALL     ->
+                {
+                    this.parent.tree.expandAll();
+
+                    // ツリー構造の全ダンプはデバッグ時 (-Drawmats.debug) のみ。
+                    if (Reference.LOGGER.isDebugEnabled())
+                    {
+                        this.parent.tree.logStructure();
+                    }
+                }
                 case COLLAPSE_ALL   -> this.parent.tree.collapseAll();
                 case EXPORT         -> { this.parent.exportToFile(); return; }
+                case GRAPH          -> { this.parent.openGraph(); return; }
+                case FLOW           -> { this.parent.openFlow(); return; }
                 case HIDE_AVAILABLE -> this.parent.tree.toggleHideAvailable();
                 case CLEAR_IGNORED  -> this.parent.tree.clearIgnored();
+                case IGNORED        -> { this.parent.openIgnoredMenu(); return; }
             }
             this.parent.reInit();
         }
