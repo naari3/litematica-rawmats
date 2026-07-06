@@ -16,8 +16,6 @@ Fabric, with [malilib](https://github.com/sakura-ryoko/malilib) and [Litematica]
 | 26.1 – 26.1.2 | 0.28.9+ | 0.27.9+ |
 | 1.21.11 | 0.27.16+ | 0.26.11+ |
 
-The Litematica versions above are also the fixed releases for the July 2026 security advisory (older builds allowed arbitrary file writes via path traversal in the Servux schematic transfer), so this mod refuses to load with a vulnerable one.
-
 Older versions are not supported because the Litematica subsystem this mod builds on (the recipe-decomposed material list) does not exist there.
 
 ## Usage
