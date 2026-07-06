@@ -198,14 +198,6 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         this.writeExportFile("raw_material_list_", ".txt", CraftListExport.render(this.tree));
     }
 
-    /** レシピツリー画面 (左→右の家系図表示) を開く。Esc でこのリストに戻る。 */
-    public void openGraph()
-    {
-        GuiCraftGraph gui = new GuiCraftGraph(this.tree);
-        gui.setParent(this);
-        GuiBase.openGui(gui);
-    }
-
     /** クラフトフロー (種別マージ DAG のグラフ) を開く。Esc でこのリストに戻る。 */
     public void openFlow()
     {
@@ -295,7 +287,6 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         int by = this.getScreenHeight() - 26;
         int bx = 12;
         bx += this.addButton(bx, by, ButtonType.EXPORT) + gap;
-        bx += this.addButton(bx, by, ButtonType.GRAPH) + gap;
         bx += this.addButton(bx, by, ButtonType.FLOW) + gap + 6;
         this.addSummaryLabel(bx, by + 6);
     }
@@ -387,7 +378,6 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         COLLAPSE_ALL   ("rawmats.gui.button.collapse_all"),
         EXPAND_ALL     ("rawmats.gui.button.expand_all"),
         EXPORT         ("rawmats.gui.button.export"),
-        GRAPH          ("rawmats.gui.button.graph"),
         FLOW           ("rawmats.gui.button.flow"),
         HIDE_AVAILABLE ("rawmats.gui.button.hide_available"),
         CLEAR_IGNORED  ("rawmats.gui.button.clear_ignored"),
@@ -446,7 +436,6 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
                 }
                 case COLLAPSE_ALL   -> this.parent.tree.collapseAll();
                 case EXPORT         -> { this.parent.exportToFile(); return; }
-                case GRAPH          -> { this.parent.openGraph(); return; }
                 case FLOW           -> { this.parent.openFlow(); return; }
                 case HIDE_AVAILABLE -> this.parent.tree.toggleHideAvailable();
                 case CLEAR_IGNORED  -> this.parent.tree.clearIgnored();
