@@ -1,6 +1,6 @@
 # バージョン共通/バージョン別のプロパティ。
 # See https://stonecutter.kikugie.dev/wiki/config/properties#centralized-properties
-mod.version = "0.4.0"
+mod.version = "0.4.1"
 mod.file_name = "rawmats-fabric"
 
 deps.fabric_loader = "0.19.3"
