@@ -6,7 +6,7 @@ bin/
 
 # Fabric Loom run dir
 run/
-run-client.log
+run-client*.log
 
 # IDE
 *.classpath

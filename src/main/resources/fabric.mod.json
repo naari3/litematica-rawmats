@@ -23,9 +23,9 @@
 	},
 
 	"depends": {
-		"minecraft": "~26.2-",
-		"malilib": ">=0.29.0- <0.30.0-",
-		"litematica": ">=0.28.0-"
+		"minecraft": "${mc_compat}",
+		"malilib": "${malilib_compat}",
+		"litematica": "${litematica_compat}"
 	},
 
 	"custom": {

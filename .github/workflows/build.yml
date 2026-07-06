@@ -11,6 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # ビルドは JDK 25 で起動し、1.21.11 用の JDK 21 は Gradle toolchain (foojay) が取得する
       - name: Set up JDK 25
         uses: actions/setup-java@v5
         with:
@@ -24,9 +25,10 @@ jobs:
             ~/.gradle/wrapper
             ~/.gradle/caches
             .gradle/loom-cache
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle', 'gradle.properties') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', 'gradle.properties', 'stonecutter.properties.toml') }}
           restore-keys: ${{ runner.os }}-gradle-
 
+      # 全対応バージョン (stonecutter サブプロジェクト) をビルド + テスト
       - name: Build with Gradle
         run: |
           chmod +x gradlew
@@ -35,4 +37,4 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: build-libs
-          path: build/libs
+          path: versions/*/build/libs
