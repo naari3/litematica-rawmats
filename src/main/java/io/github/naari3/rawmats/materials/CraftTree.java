@@ -20,7 +20,11 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
+//? if >=26.1 {
 import fi.dy.masa.malilib.util.data.ItemType;
+//?} else {
+/*import fi.dy.masa.malilib.util.ItemType;
+*///?}
 import fi.dy.masa.litematica.materials.MaterialListBase;
 import fi.dy.masa.litematica.materials.MaterialListEntry;
 import fi.dy.masa.litematica.materials.MaterialListUtils;
@@ -112,7 +116,11 @@ public class CraftTree
 
         for (MaterialListEntry e : source.getMaterialsAll())
         {
+            //? if >=26.1 {
             list.add(new Demand(e.getStack().typeHolder(), e.getStack().getCount() * e.getCountTotal()));
+            //?} else {
+            /*list.add(new Demand(e.getStack().getItemHolder(), e.getStack().getCount() * e.getCountTotal()));
+            *///?}
         }
 
         this.rebuildFromDemands(list);

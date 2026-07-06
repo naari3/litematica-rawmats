@@ -560,7 +560,11 @@ public class GuiCraftDag extends GuiBase
             lines.add(hintLine("rawmats.gui.label.recipe.hint"));
         }
 
+        //? if >=26.1 {
         ctx.renderTooltip(this.font, lines, mouseX, mouseY);
+        //?} else {
+        /*ctx.setComponentTooltipForNextFrame(this.font, lines, mouseX, mouseY);
+        *///?}
     }
 
     private static Component hintLine(String key)

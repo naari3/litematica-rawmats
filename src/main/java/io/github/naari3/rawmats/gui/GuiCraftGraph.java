@@ -235,7 +235,11 @@ public class GuiCraftGraph extends GuiBase
             lines.add(Component.literal(StringUtils.translate(key)).withStyle(s -> s.withColor(0x909090)));
         }
 
+        //? if >=26.1 {
         ctx.renderTooltip(this.font, lines, mouseX, mouseY);
+        //?} else {
+        /*ctx.setComponentTooltipForNextFrame(this.font, lines, mouseX, mouseY);
+        *///?}
     }
 
     private static void hLine(GuiContext ctx, int x1, int x2, int y)
