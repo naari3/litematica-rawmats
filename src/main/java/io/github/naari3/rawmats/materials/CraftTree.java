@@ -302,7 +302,6 @@ public class CraftTree
 
     public void ignore(Item it)    { this.state.ignored.add(it); this.rowsDirty = true; }
     public void unignore(Item it)  { this.state.ignored.remove(it); this.rowsDirty = true; }
-    public boolean isIgnored(Item it) { return this.state.ignored.contains(it); }
 
     /** 除外中の型の一覧 (表示用スナップショット)。 */
     public List<Item> getIgnored() { return new ArrayList<>(this.state.ignored); }
@@ -518,17 +517,11 @@ public class CraftTree
         LinkedHashMap<Item, Long> frontierGross = pass.frontierGross;
         Map<Item, CraftNode> choosable = pass.choosable;
 
-        // frontier を在庫ネットして行に。
+        // frontier を在庫ネットして行に (除外型は addGross で需要ごと落ちているのでここには来ない)。
         List<MatRow> rows = new ArrayList<>();
         for (Map.Entry<Item, Long> en : frontierGross.entrySet())
         {
             Item it = en.getKey();
-
-            if (this.state.ignored.contains(it))
-            {
-                continue;
-            }
-
             int have = this.available.getInt(it);
             int gross = (int) Math.min(Integer.MAX_VALUE, en.getValue());
             int net = (int) Math.max(0L, en.getValue() - have);

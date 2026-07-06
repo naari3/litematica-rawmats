@@ -206,8 +206,8 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         GuiBase.openGui(gui);
     }
 
-    /** クラフトフロー (種別マージ DAG のグラフ) を開く。リスト表示 (手順) とは画面内で相互切替。 */
-    public void openSteps()
+    /** クラフトフロー (種別マージ DAG のグラフ) を開く。Esc でこのリストに戻る。 */
+    public void openFlow()
     {
         GuiCraftDag gui = new GuiCraftDag(this.tree);
         gui.setParent(this);
@@ -296,7 +296,7 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         int bx = 12;
         bx += this.addButton(bx, by, ButtonType.EXPORT) + gap;
         bx += this.addButton(bx, by, ButtonType.GRAPH) + gap;
-        bx += this.addButton(bx, by, ButtonType.STEPS) + gap + 6;
+        bx += this.addButton(bx, by, ButtonType.FLOW) + gap + 6;
         this.addSummaryLabel(bx, by + 6);
     }
 
@@ -388,7 +388,7 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         EXPAND_ALL     ("rawmats.gui.button.expand_all"),
         EXPORT         ("rawmats.gui.button.export"),
         GRAPH          ("rawmats.gui.button.graph"),
-        STEPS          ("rawmats.gui.button.steps"),
+        FLOW           ("rawmats.gui.button.flow"),
         HIDE_AVAILABLE ("rawmats.gui.button.hide_available"),
         CLEAR_IGNORED  ("rawmats.gui.button.clear_ignored"),
         IGNORED        ("rawmats.gui.button.ignored");
@@ -434,11 +434,20 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         {
             switch (this.type)
             {
-                case EXPAND_ALL     -> { this.parent.tree.expandAll(); this.parent.tree.logStructure(); }
+                case EXPAND_ALL     ->
+                {
+                    this.parent.tree.expandAll();
+
+                    // ツリー構造の全ダンプはデバッグ時 (-Drawmats.debug) のみ。
+                    if (Reference.LOGGER.isDebugEnabled())
+                    {
+                        this.parent.tree.logStructure();
+                    }
+                }
                 case COLLAPSE_ALL   -> this.parent.tree.collapseAll();
                 case EXPORT         -> { this.parent.exportToFile(); return; }
                 case GRAPH          -> { this.parent.openGraph(); return; }
-                case STEPS          -> { this.parent.openSteps(); return; }
+                case FLOW           -> { this.parent.openFlow(); return; }
                 case HIDE_AVAILABLE -> this.parent.tree.toggleHideAvailable();
                 case CLEAR_IGNORED  -> this.parent.tree.clearIgnored();
                 case IGNORED        -> { this.parent.openIgnoredMenu(); return; }
