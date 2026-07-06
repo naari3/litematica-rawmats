@@ -20,7 +20,7 @@ Press `M + J` to open the settings screen, where you can rebind both keys.
 
 ## Views
 
-The list can be viewed in three ways. They all share the same state — expanded items, ignored items, tag choices, and the multiplier — and all compute their numbers the same way, so switching views never changes the totals.
+The list can be viewed in three ways. Expanded items, ignored items, tag choices, and the multiplier are shared between them, and the numbers are computed the same way in each, so switching views does not change the totals.
 
 ### Raw Material List
 
@@ -32,22 +32,22 @@ The main flat list, styled after Litematica's material list (Item / Total / Miss
 - **Middle-click** a tag row to pick which item to use.
 - **Hold Tab** while hovering a row to see its crafting recipe.
 
-Extras: a multiplier for building the schematic N times, a "Hide available" toggle, plain-text export, and an "Ignored: N" button that opens a menu where ignored items can be un-ignored one by one.
+The list also has a multiplier for building the schematic N times, a "Hide available" toggle, plain-text export, and an "Ignored: N" button that opens a menu where ignored items can be un-ignored one by one.
 
 ### Crafting Flow
 
-Opened with the **Flow view** button. Item types are merged into a single left-to-right graph: raw materials on the left flow through intermediate crafts into the schematic's materials on the right. Shared ingredients (like sticks) appear once, with edges fanning out to every item that uses them.
+Opened with the **Flow view** button. Item types are merged into a single left-to-right graph: raw materials on the left flow through intermediate crafts into the schematic's materials on the right. A shared ingredient like sticks appears only once, with an edge to every item that uses it.
 
 ![Crafting Flow](docs/images/crafting-flow.png)
 
 - Same interactions as the list: left-click expand, right-click fold (a raw material folds into its consumer), Shift+right-click ignore, middle-click tag choice, Tab recipe.
-- Counts are inventory-netted; fully covered items get a green checkmark, partial stock shows `have/total`.
-- Hovering a node highlights the paths through it — the materials it needs and everything it flows into.
-- Drag to pan, scroll to zoom, plus Expand all / Collapse all / Hide available buttons.
+- Counts are inventory-netted. Fully covered items get a green checkmark, partial stock shows `have/total`.
+- Hovering a node highlights its paths: the materials it needs and everything it flows into.
+- Drag to pan, scroll to zoom. Expand all / Collapse all / Hide available buttons are available here too.
 
 ### Recipe Tree
 
-Opened with the **Tree view** button. A per-recipe tree where shared ingredients are shown once per use, so each item's full recipe structure can be read on its own. Drag to pan, scroll to zoom, click a node to fold or unfold its subtree.
+Opened with the **Tree view** button. A recipe tree where shared ingredients are repeated under each item that uses them, so the full recipe structure of each item can be read on its own. Drag to pan, scroll to zoom, click a node to fold or unfold its subtree.
 
 ## Features
 
@@ -57,7 +57,7 @@ Crafted items are broken down into their ingredients, recursively, down to raw m
 
 ### Inventory netting
 
-Items already in your inventory are subtracted, so the list shows what's actually left to gather. Fully covered branches stop expanding and turn green. Intermediate items you already have (say, pistons) stop requesting their own materials, in every view.
+Items already in your inventory are subtracted, so the list shows what's actually left to gather. Fully covered branches stop expanding and turn green. This also applies to intermediate items: if you already have pistons in stock, their own materials are no longer requested, in every view.
 
 ### Tag ingredients
 
@@ -65,7 +65,7 @@ When a recipe accepts a tag (any planks, any log), you choose which item to coun
 
 ### Ignoring items
 
-Anything you don't want counted (items you farm anyway, or a branch you'll source differently) can be ignored with Shift+right-click and brought back later from the ignored menu.
+Items you don't want counted, such as things you farm anyway, can be removed with Shift+right-click. Ignoring an item also removes the demand it would have created. Ignored items can be restored later from the ignored menu.
 
 ## Notes
 
