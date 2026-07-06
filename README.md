@@ -26,7 +26,7 @@ Press `M + J` to open the settings screen, where you can rebind both keys.
 
 ## Views
 
-The list can be viewed in three ways. Expanded items, ignored items, tag choices, and the multiplier are shared between them, and the numbers are computed the same way in each, so switching views does not change the totals.
+The list can be viewed in two ways. Expanded items, ignored items, tag choices, and the multiplier are shared between them, and the numbers are computed the same way in each, so switching views does not change the totals.
 
 ### Raw Material List
 
@@ -50,10 +50,6 @@ Opened with the **Flow view** button. Item types are merged into a single left-t
 - Counts are inventory-netted. Fully covered items get a green checkmark, partial stock shows `have/total`.
 - Hovering a node highlights its paths: the materials it needs and everything it flows into.
 - Drag to pan, scroll to zoom. Expand all / Collapse all / Hide available buttons are available here too.
-
-### Recipe Tree
-
-Opened with the **Tree view** button. A recipe tree where shared ingredients are repeated under each item that uses them, so the full recipe structure of each item can be read on its own. Drag to pan, scroll to zoom, click a node to fold or unfold its subtree.
 
 ## Features
 

@@ -365,7 +365,7 @@ public class GuiCraftDag extends GuiBase
     {
         if (this.nodes.isEmpty())
         {
-            String s = StringUtils.translate("rawmats.gui.label.graph.empty");
+            String s = StringUtils.translate("rawmats.gui.label.dag.empty");
             ctx.drawString(this.font, s, this.width / 2 - this.getStringWidth(s) / 2, this.height / 2, 0xFFC0C0C0);
             return;
         }

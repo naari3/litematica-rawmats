@@ -43,6 +43,7 @@
 1. `ItemStack.typeHolder()` (26.x) ↔ `getItemHolder()` (1.21.11) — CraftTree
 2. `fi.dy.masa.malilib.util.data.ItemType` (26.x) ↔ `fi.dy.masa.malilib.util.ItemType` (1.21.11) — import 分岐。1.21.11 にも data.ItemType は存在するが、litematica 1.21.11 の `MaterialListUtils.getInventoryItemCounts` が旧 ItemType を返すため合わせるしかない (deprecation 警告は litematica 側由来で無害)
 3,4. `GuiContext.renderTooltip(Font, List<Component>, int, int)` は malilib 0.29 世代のヘルパーで 1.21.11 (0.27.16) に無い → 素の `setComponentTooltipForNextFrame` を使用 (GuiCraftDag / GuiCraftGraph)
+   - 【訂正 2026-07-06】GuiCraftGraph (ツリー表示) はこの後削除したため、現存する分岐は GuiCraftDag の1箇所
 
 26.1.x (malilib 0.28.9 / litematica 0.27.9) は**コード変更ゼロ**でコンパイル可。
 
