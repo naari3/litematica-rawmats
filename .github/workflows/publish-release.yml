@@ -1,6 +1,7 @@
 name: Publish Release
 
 # GitHub で Release を publish すると走る。tag (例 v0.1.0) を付けて Release を作成すること。
+# 対応 Minecraft バージョンごとに jar を作り、それぞれ Modrinth / CurseForge / GitHub へ publish する。
 on:
   release:
     types: [published]
@@ -11,6 +12,23 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    strategy:
+      # 1つの系列の publish 失敗で他系列を止めない
+      fail-fast: false
+      matrix:
+        include:
+          - project: "26.2.x"
+            game_versions: "26.2"
+            java: "25"
+          - project: "26.1.x"
+            game_versions: |
+              26.1
+              26.1.1
+              26.1.2
+            java: "25"
+          - project: "1.21.11"
+            game_versions: "1.21.11"
+            java: "21"
     steps:
       - uses: actions/checkout@v7
 
@@ -27,25 +45,25 @@ jobs:
             ~/.gradle/wrapper
             ~/.gradle/caches
             .gradle/loom-cache
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle', 'gradle.properties') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', 'gradle.properties', 'stonecutter.properties.toml') }}
           restore-keys: ${{ runner.os }}-gradle-
 
       - name: Build with Gradle
         run: |
           chmod +x gradlew
-          ./gradlew build
+          ./gradlew ":${{ matrix.project }}:build"
 
-      - name: Read mod_version from gradle.properties
+      - name: Read mod version from stonecutter.properties.toml
         id: props
         run: |
-          v=$(sed -n 's/^[[:space:]]*mod_version[[:space:]]*=[[:space:]]*//p' gradle.properties)
+          v=$(sed -n 's/^mod\.version = "\(.*\)"$/\1/p' stonecutter.properties.toml)
           echo "mod_version=$v" >> "$GITHUB_OUTPUT"
           echo "mod_version: $v"
 
       - name: Find the built jar (exclude sources)
         id: jar
         run: |
-          f=$(find build/libs -name 'rawmats-fabric-*.jar' ! -name '*-sources.jar' | head -n1)
+          f=$(find "versions/${{ matrix.project }}/build/libs" -name 'rawmats-fabric-*.jar' ! -name '*-sources.jar' | head -n1)
           echo "file=$f" >> "$GITHUB_OUTPUT"
           echo "jar: $f"
 
@@ -55,14 +73,15 @@ jobs:
       - name: Publish to Modrinth, CurseForge and GitHub
         uses: Kira-NT/mc-publish@v3
         with:
-          name: Litematica RawMaterials ${{ github.event.release.tag_name }}
-          version: ${{ steps.props.outputs.mod_version }}
+          name: Litematica RawMaterials ${{ github.event.release.tag_name }} for ${{ matrix.project }}
+          # MC 系列ごとに別バージョンとして区別する (例 0.5.0+26.2)
+          version: ${{ steps.props.outputs.mod_version }}+${{ matrix.project }}
           version-type: ${{ github.event.release.prerelease && 'beta' || 'release' }}
           changelog: ${{ github.event.release.body }}
 
-          game-versions: "26.2"
+          game-versions: ${{ matrix.game_versions }}
           loaders: fabric
-          java: "25"
+          java: ${{ matrix.java }}
 
           files: ${{ steps.jar.outputs.file }}
 

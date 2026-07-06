@@ -8,9 +8,15 @@ Litematica's material list shows what a schematic is made of, but anything you'd
 
 ## Requirements
 
-- Minecraft 26.2 (Fabric)
-- [malilib](https://github.com/sakura-ryoko/malilib) 0.29.0+
-- [Litematica](https://github.com/sakura-ryoko/litematica) 0.28.0+
+Fabric, with [malilib](https://github.com/sakura-ryoko/malilib) and [Litematica](https://github.com/sakura-ryoko/litematica) for your Minecraft version:
+
+| Minecraft | malilib | Litematica |
+| --- | --- | --- |
+| 26.2 | 0.29.0+ | 0.28.0+ |
+| 26.1 – 26.1.2 | 0.28.9+ | 0.27.9+ |
+| 1.21.11 | 0.27.16+ | 0.26.11+ |
+
+Older versions are not supported because the Litematica subsystem this mod builds on (the recipe-decomposed material list) does not exist there.
 
 ## Usage
 
@@ -77,4 +83,4 @@ Recipes come from your client's recipe book, the same source Litematica uses. On
 ./gradlew build
 ```
 
-The mod jar is written to `build/libs/` (e.g. `rawmats-fabric-26.2-0.1.0.jar`). Put it in your `mods` folder along with malilib and Litematica for the same Minecraft version.
+This builds every supported Minecraft version ([Stonecutter](https://stonecutter.kikugie.dev/)); jars are written to `versions/<version>/build/libs/` (e.g. `versions/26.2.x/build/libs/rawmats-fabric-26.2-0.4.0.jar`). Put the jar in your `mods` folder along with malilib and Litematica for the same Minecraft version.
