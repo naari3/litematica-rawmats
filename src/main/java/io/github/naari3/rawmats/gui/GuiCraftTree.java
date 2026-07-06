@@ -33,7 +33,6 @@ import fi.dy.masa.malilib.util.StringUtils;
 import fi.dy.masa.malilib.util.time.TimeFormat;
 
 import io.github.naari3.rawmats.Reference;
-import io.github.naari3.rawmats.materials.CraftDotExport;
 import io.github.naari3.rawmats.materials.CraftListExport;
 import io.github.naari3.rawmats.materials.CraftTree;
 import io.github.naari3.rawmats.materials.MatRow;
@@ -215,12 +214,6 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         GuiBase.openGui(gui);
     }
 
-    /** クラフト依存グラフを Graphviz DOT で書き出す (dot -Tsvg で画像化する用)。 */
-    public void exportDotToFile()
-    {
-        this.writeExportFile("craft_graph_", ".dot", CraftDotExport.render(this.tree));
-    }
-
     private void writeExportFile(String prefix, String ext, String content)
     {
         Path dir = FileUtils.getConfigDirectory().resolve(Reference.MOD_ID);
@@ -302,7 +295,6 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         int by = this.getScreenHeight() - 26;
         int bx = 12;
         bx += this.addButton(bx, by, ButtonType.EXPORT) + gap;
-        bx += this.addButton(bx, by, ButtonType.EXPORT_DOT) + gap;
         bx += this.addButton(bx, by, ButtonType.GRAPH) + gap;
         bx += this.addButton(bx, by, ButtonType.STEPS) + gap + 6;
         this.addSummaryLabel(bx, by + 6);
@@ -395,7 +387,6 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         COLLAPSE_ALL   ("rawmats.gui.button.collapse_all"),
         EXPAND_ALL     ("rawmats.gui.button.expand_all"),
         EXPORT         ("rawmats.gui.button.export"),
-        EXPORT_DOT     ("rawmats.gui.button.export_dot"),
         GRAPH          ("rawmats.gui.button.graph"),
         STEPS          ("rawmats.gui.button.steps"),
         HIDE_AVAILABLE ("rawmats.gui.button.hide_available"),
@@ -446,7 +437,6 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
                 case EXPAND_ALL     -> { this.parent.tree.expandAll(); this.parent.tree.logStructure(); }
                 case COLLAPSE_ALL   -> this.parent.tree.collapseAll();
                 case EXPORT         -> { this.parent.exportToFile(); return; }
-                case EXPORT_DOT     -> { this.parent.exportDotToFile(); return; }
                 case GRAPH          -> { this.parent.openGraph(); return; }
                 case STEPS          -> { this.parent.openSteps(); return; }
                 case HIDE_AVAILABLE -> this.parent.tree.toggleHideAvailable();

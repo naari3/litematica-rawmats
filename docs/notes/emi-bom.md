@@ -55,3 +55,6 @@
 
 - rawmats 側の DOT 書き出し: `CraftDotExport` (2026-07-05 実装)。
   アイテム種別マージの DAG。Graphviz `dot -Tsvg` でレンダリング確認済み。
+- 【訂正 2026-07-06】DOT 書き出しは削除した。役割 (レイアウト/見せ方の試行錯誤) は
+  ゲーム内のクラフトフロー (`GuiCraftDag`、簡易 Sugiyama 自前実装) が置き換え、
+  在庫ネット (`CraftTree.computeNetPass`) と別系統の集計を二重保守しないため。

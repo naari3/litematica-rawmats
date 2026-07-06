@@ -10,7 +10,6 @@
 	"rawmats.gui.button.expand_all": "すべて展開",
 	"rawmats.gui.button.collapse_all": "すべて畳む",
 	"rawmats.gui.button.export": "書き出し",
-	"rawmats.gui.button.export_dot": "グラフ書き出し (.dot)",
 	"rawmats.gui.button.graph": "ツリー表示",
 	"rawmats.gui.button.steps": "フロー表示",
 	"rawmats.gui.title.craft_graph": "レシピツリー",

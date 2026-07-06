@@ -10,7 +10,6 @@
 	"rawmats.gui.button.expand_all": "Expand all",
 	"rawmats.gui.button.collapse_all": "Collapse all",
 	"rawmats.gui.button.export": "Export",
-	"rawmats.gui.button.export_dot": "Export graph (.dot)",
 	"rawmats.gui.button.graph": "Tree view",
 	"rawmats.gui.button.steps": "Flow view",
 	"rawmats.gui.title.craft_graph": "Recipe Tree",
