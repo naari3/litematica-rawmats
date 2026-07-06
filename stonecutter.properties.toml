@@ -1,0 +1,30 @@
+# バージョン共通/バージョン別のプロパティ。
+# See https://stonecutter.kikugie.dev/wiki/config/properties#centralized-properties
+mod.version = "0.4.0"
+mod.file_name = "rawmats-fabric"
+
+deps.fabric_loader = "0.19.3"
+loomx.loom_version = "1.17-SNAPSHOT"
+
+# 依存の floor はコンパイルに使ったバージョンに合わせる (それ未満での API 存在を検証していないため)。
+
+["1.21.11"]
+mod.mc_compat = "1.21.11"
+mod.malilib_compat = ">=0.27.16"
+mod.litematica_compat = ">=0.26.11"
+deps.malilib = "0.27.16"
+deps.litematica = "0.26.11"
+
+["26.1.x"]
+mod.mc_compat = "~26.1"
+mod.malilib_compat = ">=0.28.9 <0.29"
+mod.litematica_compat = ">=0.27.9"
+deps.malilib = "0.28.9"
+deps.litematica = "0.27.9"
+
+["26.2.x"]
+mod.mc_compat = "~26.2"
+mod.malilib_compat = ">=0.29.0 <0.30"
+mod.litematica_compat = ">=0.28.0"
+deps.malilib = "0.29.3"
+deps.litematica = "0.28.3"
