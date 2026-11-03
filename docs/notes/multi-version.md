@@ -126,3 +126,5 @@
 - 26.3.x の runClient: rawmats 0.4.1 ロード、タイトル画面到達。rawmats/mixin 由来のエラーなし
   (ログの ERROR は oshi の perf counter と、共有 run/options.txt の `scancode.115` キー設定で、rawmats とは無関係)。
 - 未検証: 26.3 のワールド内での GUI 操作 (M+K の各ビュー表示・Tab/Esc の挙動)。deps を上げた既存 3 系列の実機起動。
+- 【追記 2026-11-03】26.3 のワールド内 GUI はユーザーが手動でテストし、問題なしとの報告 (`/recipe give @s *` でレシピを全開放した状態)。
+  同じ回の runClient ログに rawmats 由来の例外は出ていない。既存 3 系列の実機起動は引き続き未検証。
