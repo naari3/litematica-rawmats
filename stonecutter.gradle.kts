@@ -2,4 +2,4 @@ plugins {
     id("dev.kikugie.stonecutter")
 }
 
-stonecutter active "26.2.x"
+stonecutter active "26.3.x"

@@ -77,3 +77,54 @@
 - rawmats の litematica floor をセキュリティ下限を兼ねる値に設定。1.21.11 (>=0.26.11) と 26.1.x (>=0.27.9) は
   既に修正版が floor だったため変更なし。26.2 のみ >=0.28.0 → **>=0.28.3** に引き上げ。
 - stonecutter.properties.toml に「これ未満に floor を下げない」旨のコメントを追加。
+
+## 2026-11-03 26.3 対応
+
+### 依存の公開状況
+
+観察:
+- MC 26.3 はリリース済み (latest release = 26.3、snapshot は 26.4 系)。26.3.x のパッチ版はまだ無い。
+- masa maven (sakura-ryoko): malilib-fabric-26.3 0.30.0〜0.30.2、litematica-fabric-26.3 0.29.0〜0.29.1 (2026-09-27 公開)。
+  - litematica 0.29.1 の depends: `minecraft >=26.3 <26.4`, `malilib >=0.30.2- <0.31.0-`。`materials/json` パッケージあり。
+- 以前に対応しようとしたときは周辺 mod が出ていなかった (ユーザー談)。今回はそろっていた。
+
+### masa maven が古い版を消している (既存系列のビルド破損)
+
+観察:
+- 既存系列のコンパイル依存のうち malilib 0.28.9 以外 (malilib 0.27.16 / 0.29.3、litematica 0.26.11 / 0.27.9 / 0.28.3) が 404。
+  maven-metadata.xml には系列ごとに最新 3〜4 版しか載っていない:
+  - 1.21.11: malilib 0.27.17〜0.27.20 / litematica 0.26.14〜0.26.16
+  - 26.1.2: malilib 0.28.9〜0.28.12 / litematica 0.27.12〜0.27.14
+  - 26.2: malilib 0.29.3〜0.29.6 / litematica 0.28.6〜0.28.8
+- そのため 26.3 の追加とは関係なく、クリーン環境 (loom キャッシュ無し) の `gradlew build` は configure 段階で失敗する状態だった。
+
+対応:
+- 既存 3 系列の deps.* を、残っている最新版 (上記の末尾) に上げた。
+- 【逸脱】これまでの方針は「floor = コンパイルに使った版」だったが、宣言 floor (*_compat) は据え置いた。理由:
+  - rawmats 側のソースはこの変更 (KeyCodes の import 分岐以外) で変わっておらず、同じソースが旧 floor 版でもコンパイルできていた。
+    よって旧 floor 版にも、rawmats が使う API は存在すると考えられる (仮説だが、根拠は前回のコンパイル実績)。
+  - floor を上げると、旧版の litematica を使っているユーザーを理由なく弾くことになる。
+  - 26.2 は以前からコンパイル 0.29.3 / floor 0.29.0 で、すでに floor とコンパイル版がずれていた。
+- 今後も版が消えるとビルドが壊れる。消えたら、そのとき残っている版に deps.* を上げる。
+
+### コード差分 (26.3)
+
+観察:
+- malilib 0.30 で `fi.dy.masa.malilib.util.KeyCodes` が `fi.dy.masa.malilib.util.input.KeyCodes` に移動 (旧パッケージには無い)。
+  KEY_TAB / KEY_ESCAPE は移動先にある。`KeybindMulti.isKeyDown(int)` は従来どおり。
+- コンパイルエラーはこれだけ。GuiCraftDag / GuiCraftTree / WidgetCraftTreeEntry の import を `//? if >=26.3` で分岐した。
+
+構成変更:
+- settings.gradle.kts に `version("26.3.x", "26.3")`、vcsVersion と active を 26.3.x に変更。
+  - vcsVersion の系列は `src` をそのままコンパイルするため、新しい分岐を足す場合は vcsVersion 側の分岐を有効にしておく必要がある
+    (最初は vcsVersion を 26.2.x のまま 26.3 の分岐を有効にして、26.2.x のコンパイルが壊れた)。
+- publish-release.yml の matrix に 26.3.x (game_versions: 26.3) を追加。
+
+### 検証状況
+
+- `gradlew build` で 4 系列とも jar 生成 + テスト通過 (rawmats-fabric-{1.21.11,26.1.2,26.2,26.3}-0.4.1.jar)。
+- 26.3.x の runClient: rawmats 0.4.1 ロード、タイトル画面到達。rawmats/mixin 由来のエラーなし
+  (ログの ERROR は oshi の perf counter と、共有 run/options.txt の `scancode.115` キー設定で、rawmats とは無関係)。
+- 未検証: 26.3 のワールド内での GUI 操作 (M+K の各ビュー表示・Tab/Esc の挙動)。deps を上げた既存 3 系列の実機起動。
+- 【追記 2026-11-03】26.3 のワールド内 GUI はユーザーが手動でテストし、問題なしとの報告 (`/recipe give @s *` でレシピを全開放した状態)。
+  同じ回の runClient ログに rawmats 由来の例外は出ていない。既存 3 系列の実機起動は引き続き未検証。

@@ -28,7 +28,11 @@ import fi.dy.masa.malilib.gui.interfaces.ITextFieldListener;
 import fi.dy.masa.malilib.gui.wrappers.TextFieldType;
 import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.util.FileUtils;
-import fi.dy.masa.malilib.util.KeyCodes;
+//? if >=26.3 {
+import fi.dy.masa.malilib.util.input.KeyCodes;
+//?} else {
+/*import fi.dy.masa.malilib.util.KeyCodes;
+*///?}
 import fi.dy.masa.malilib.util.StringUtils;
 import fi.dy.masa.malilib.util.time.TimeFormat;
 

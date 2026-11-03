@@ -28,7 +28,11 @@ import fi.dy.masa.malilib.gui.button.IButtonActionListener;
 import fi.dy.masa.malilib.hotkeys.KeybindMulti;
 import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.render.RenderUtils;
-import fi.dy.masa.malilib.util.KeyCodes;
+//? if >=26.3 {
+import fi.dy.masa.malilib.util.input.KeyCodes;
+//?} else {
+/*import fi.dy.masa.malilib.util.KeyCodes;
+*///?}
 import fi.dy.masa.malilib.util.StringUtils;
 
 import io.github.naari3.rawmats.materials.CraftNode;

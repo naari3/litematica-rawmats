@@ -12,6 +12,7 @@ Fabric, with [malilib](https://github.com/sakura-ryoko/malilib) and [Litematica]
 
 | Minecraft | malilib | Litematica |
 | --- | --- | --- |
+| 26.3 | 0.30.2+ | 0.29.1+ |
 | 26.2 | 0.29.0+ | 0.28.3+ |
 | 26.1 – 26.1.2 | 0.28.9+ | 0.27.9+ |
 | 1.21.11 | 0.27.16+ | 0.26.11+ |
@@ -79,4 +80,4 @@ Recipes come from your client's recipe book, the same source Litematica uses. On
 ./gradlew build
 ```
 
-This builds every supported Minecraft version ([Stonecutter](https://stonecutter.kikugie.dev/)); jars are written to `versions/<version>/build/libs/` (e.g. `versions/26.2.x/build/libs/rawmats-fabric-26.2-0.4.0.jar`). Put the jar in your `mods` folder along with malilib and Litematica for the same Minecraft version.
+This builds every supported Minecraft version ([Stonecutter](https://stonecutter.kikugie.dev/)); jars are written to `versions/<version>/build/libs/` (e.g. `versions/26.3.x/build/libs/rawmats-fabric-26.3-0.4.1.jar`). Put the jar in your `mods` folder along with malilib and Litematica for the same Minecraft version.

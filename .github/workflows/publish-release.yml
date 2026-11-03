@@ -17,6 +17,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - project: "26.3.x"
+            game_versions: "26.3"
+            java: "25"
           - project: "26.2.x"
             game_versions: "26.2"
             java: "25"
