@@ -312,7 +312,9 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         double donePct = total > 0 ? (double) (total - need) / (double) total * 100.0 : 100.0;
         String summary = StringUtils.translate("rawmats.gui.label.summary",
                 types, need, String.format("%.1f%%", donePct));
-        this.addLabel(x, y, this.getStringWidth(summary), 12, 0xFFFFFFFF, summary);
+        // WidgetLabel は渡した行をもう一度 translate (= String.format) に通すので、% をエスケープしておく
+        // (しないと "0.0% done" の "% d" が書式指定子として解釈され "Format Error:" になる)。
+        this.addLabel(x, y, this.getStringWidth(summary), 12, 0xFFFFFFFF, summary.replace("%", "%%"));
     }
 
     private int addButton(int x, int y, ButtonType type)
