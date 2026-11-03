@@ -19,12 +19,13 @@ plugins {
 
 stonecutter {
     create(rootProject) {
-        // 対応バージョンは litematica の現行リリース系列 (1.21.11 / 26.1.x / 26.2) に合わせる。
+        // 対応バージョンは litematica の現行リリース系列 (1.21.11 / 26.1.x / 26.2 / 26.3) に合わせる。
         // 1.21.10 以前は litematica の materials/json が無い、または malilib GUI API が旧世代のため対象外。
         version("1.21.11", "1.21.11")
         version("26.1.x", "26.1.2")
         version("26.2.x", "26.2")
-        vcsVersion = "26.2.x"
+        version("26.3.x", "26.3")
+        vcsVersion = "26.3.x"
     }
 }
 
