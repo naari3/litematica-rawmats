@@ -36,7 +36,7 @@ The main flat list, styled after Litematica's material list (Item / Total / Miss
 - **Left-click** a row to expand it into its ingredients.
 - **Right-click** a row to fold it back into the crafted item.
 - **Shift + Right-click** a row to ignore it (removes it and everything it would be crafted into).
-- **Middle-click** a tag row to pick which item to use.
+- **Middle-click** a tag row to pick a specific item, or to go back to any item in the tag.
 - **Hold Tab** while hovering a row to see its crafting recipe.
 
 The list also has a multiplier for building the schematic N times, a "Hide available" toggle, plain-text export, and an "Ignored: N" button that opens a menu where ignored items can be un-ignored one by one.
@@ -64,7 +64,13 @@ Items already in your inventory are subtracted, so the list shows what's actuall
 
 ### Tag ingredients
 
-When a recipe accepts a tag (any planks, any log), you choose which item to count toward it.
+When a recipe accepts a tag, such as the planks in chests, pistons, sticks and note blocks, the list shows a row for the tag itself (for example `#planks`). Its icon cycles through the items in the tag, and any of them in your inventory counts toward it. Items asked for by name, like the oak planks in oak stairs, are counted first, and leftover stock goes to the tag rows.
+
+Expanding a tag row goes one step further down for the whole tag: `#planks` becomes `#logs`. Items in the tag made a different way are left out, and the tooltip names them (bamboo planks, which come from bamboo blocks).
+
+Middle-click a tag row to pick a specific item instead, and pick "Any" to go back. If you picked a specific item and expanded it, middle-clicking the expanded row (for example the crimson stems under crimson planks) also lets you switch to another kind (spruce logs) or back to any.
+
+Tag names leave out the `minecraft:` namespace by default. This can be turned off in the settings screen.
 
 ### Ignoring items
 

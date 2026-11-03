@@ -13,7 +13,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.Holder;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
 
 import fi.dy.masa.malilib.gui.GuiBase;
@@ -39,6 +38,7 @@ import fi.dy.masa.malilib.util.time.TimeFormat;
 import io.github.naari3.rawmats.Reference;
 import io.github.naari3.rawmats.materials.CraftListExport;
 import io.github.naari3.rawmats.materials.CraftTree;
+import io.github.naari3.rawmats.materials.Mat;
 import io.github.naari3.rawmats.materials.MatRow;
 
 public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, WidgetListCraftTree>
@@ -84,21 +84,21 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
     /** 左クリック: 展開 (展開は常に単一動作なので即実行)。 */
     public void expandRow(MatRow row)
     {
-        this.tree.expand(row.item.value());
+        this.tree.expand(row.mat);
         this.reInit();
     }
 
     /** 行の除外 (ignore): リストから消す。Clear ignored で戻せる。 */
     public void ignoreRow(MatRow row)
     {
-        this.tree.ignore(row.item.value());
+        this.tree.ignore(row.mat);
         this.reInit();
     }
 
     /** 右クリック: 親へ畳む。候補が 1 つなら即実行、複数のときだけアイコンポップアップで尋ねる。 */
     public void foldRow(MatRow row, int mouseX, int mouseY)
     {
-        List<Item> candidates = this.tree.getCollapseCandidates(row.item.value());
+        List<Mat> candidates = this.tree.getCollapseCandidates(row.mat);
 
         if (candidates.isEmpty())
         {
@@ -113,30 +113,28 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         }
 
         List<WidgetCraftMenu.Entry> entries = new ArrayList<>();
-        for (Item parent : candidates)
+        for (Mat parent : candidates)
         {
-            Holder<Item> holder = BuiltInRegistries.ITEM.wrapAsHolder(parent);
-            entries.add(new WidgetCraftMenu.Entry(holder, () -> this.tree.collapse(parent)));
+            entries.add(new WidgetCraftMenu.Entry(parent, () -> this.tree.collapse(parent)));
         }
 
         this.openPopup(entries, mouseX, mouseY);
     }
 
-    /** 中クリック: タグ材料 (any planks 等) の具体素材を選び直す。候補をアイコンポップアップで提示。 */
+    /** 中クリック: タグ材料 (any planks 等) を「任意」と具体素材の間で選び直す。候補をアイコンポップアップで提示。 */
     public void chooseRow(MatRow row, int mouseX, int mouseY)
     {
-        if (!row.choosable || row.choiceKey == null || row.choices == null)
+        if (row.choiceNode == null)
         {
             return;
         }
 
-        List<WidgetCraftMenu.Entry> entries = new ArrayList<>();
-        for (Holder<Item> cand : row.choices)
-        {
-            entries.add(new WidgetCraftMenu.Entry(cand, () -> this.tree.chooseMaterial(row.choiceKey, cand)));
-        }
+        List<WidgetCraftMenu.Entry> entries = ChoiceMenu.build(this.tree, row.choiceNode, row.mat);
 
-        this.openPopup(entries, mouseX, mouseY);
+        if (!entries.isEmpty())
+        {
+            this.openPopup(entries, mouseX, mouseY);
+        }
     }
 
     /** ポップアップメニューを画面内にクランプして表示する。 */
@@ -165,7 +163,7 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
      */
     public void openIgnoredMenu()
     {
-        List<Item> ignored = this.tree.getIgnored();
+        List<Mat> ignored = this.tree.getIgnored();
 
         if (ignored.isEmpty())
         {
@@ -175,10 +173,9 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
 
         List<WidgetCraftMenu.Entry> entries = new ArrayList<>();
 
-        for (Item it : ignored)
+        for (Mat m : ignored)
         {
-            Holder<Item> holder = BuiltInRegistries.ITEM.wrapAsHolder(it);
-            entries.add(new WidgetCraftMenu.Entry(holder, () -> this.tree.unignore(it)));
+            entries.add(new WidgetCraftMenu.Entry(m, () -> this.tree.unignore(m)));
         }
 
         this.popup = new WidgetCraftMenu(this.ignoredBtnX, this.ignoredBtnY + 22, entries, this::onIgnoredMenuDone);
@@ -208,6 +205,34 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         GuiCraftDag gui = new GuiCraftDag(this.tree);
         gui.setParent(this);
         GuiBase.openGui(gui);
+    }
+
+    /** デバッグ用: ツリーの状態を丸ごと config/rawmats/ に書き出す ({@link CraftTree#dumpState})。 */
+    public void dumpStateToFile()
+    {
+        this.writeExportFile("rawmats_state_", ".txt", this.tree.dumpState());
+        Reference.LOGGER.info("[rawmats] state dumped (list view)");
+    }
+
+    /** Flow view からも使う、状態ダンプの書き出し。書いたパス (失敗なら null) を返す。 */
+    @Nullable
+    static Path writeStateDump(CraftTree tree)
+    {
+        Path dir = FileUtils.getConfigDirectory().resolve(Reference.MOD_ID);
+        Path file = dir.resolve("rawmats_state_" + TimeFormat.REGULAR.formatNow() + ".txt");
+
+        try
+        {
+            Files.createDirectories(dir);
+            Files.writeString(file, tree.dumpState());
+            Reference.LOGGER.info("[rawmats] state dumped to {}", file);
+            return file;
+        }
+        catch (IOException e)
+        {
+            Reference.LOGGER.warn("[rawmats] failed to dump state", e);
+            return null;
+        }
     }
 
     private void writeExportFile(String prefix, String ext, String content)
@@ -292,6 +317,12 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         int bx = 12;
         bx += this.addButton(bx, by, ButtonType.EXPORT) + gap;
         bx += this.addButton(bx, by, ButtonType.FLOW) + gap + 6;
+
+        // デバッグ起動 (-Drawmats.debug) のときだけ、状態ダンプのボタンを出す。
+        if (Reference.LOGGER.isDebugEnabled())
+        {
+            bx += this.addButton(bx, by, ButtonType.DUMP_STATE) + gap + 6;
+        }
         this.addSummaryLabel(bx, by + 6);
     }
 
@@ -387,7 +418,8 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
         FLOW           ("rawmats.gui.button.flow"),
         HIDE_AVAILABLE ("rawmats.gui.button.hide_available"),
         CLEAR_IGNORED  ("rawmats.gui.button.clear_ignored"),
-        IGNORED        ("rawmats.gui.button.ignored");
+        IGNORED        ("rawmats.gui.button.ignored"),
+        DUMP_STATE     ("rawmats.gui.button.dump_state");
 
         private final String key;
 
@@ -446,6 +478,7 @@ public class GuiCraftTree extends GuiListBase<MatRow, WidgetCraftTreeEntry, Widg
                 case HIDE_AVAILABLE -> this.parent.tree.toggleHideAvailable();
                 case CLEAR_IGNORED  -> this.parent.tree.clearIgnored();
                 case IGNORED        -> { this.parent.openIgnoredMenu(); return; }
+                case DUMP_STATE     -> { this.parent.dumpStateToFile(); return; }
             }
             this.parent.reInit();
         }

@@ -37,5 +37,11 @@
 	"rawmats.message.no_material_list": "No material list and no schematic placement selected. Select a placement first.",
 	"rawmats.message.generating": "Generating the material list. It will show up automatically when done.",
 	"rawmats.message.exported": "Raw material list written to file: %s",
-	"rawmats.message.export_failed": "Failed to export raw material list: %s"
+	"rawmats.message.export_failed": "Failed to export raw material list: %s",
+	"rawmats.config.generic.name.shortenMinecraftTags": "Shorten Minecraft Tags",
+	"rawmats.config.generic.comment.shortenMinecraftTags": "Leaves out the minecraft: namespace in tag material names (#minecraft:logs is shown as #logs).",
+	"rawmats.gui.label.choose_any": "Any: %s",
+	"rawmats.gui.label.choose_upstream": "%s (from %s)",
+	"rawmats.gui.label.any_excludes": "Excludes: %s",
+	"rawmats.gui.button.dump_state": "Dump state"
 }
