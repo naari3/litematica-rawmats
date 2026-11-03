@@ -128,3 +128,12 @@
 - 未検証: 26.3 のワールド内での GUI 操作 (M+K の各ビュー表示・Tab/Esc の挙動)。deps を上げた既存 3 系列の実機起動。
 - 【追記 2026-11-03】26.3 のワールド内 GUI はユーザーが手動でテストし、問題なしとの報告 (`/recipe give @s *` でレシピを全開放した状態)。
   同じ回の runClient ログに rawmats 由来の例外は出ていない。既存 3 系列の実機起動は引き続き未検証。
+
+## 2026-11-03 0.4.2 リリース前の起動確認
+
+観察 (mod.version 0.4.2、各系列の runClient でタイトル画面到達まで。ワールドには入っていない):
+- 1.21.11: litematica 0.26.16 / malilib 0.27.20 / fabricloader 0.19.5 (Java 21)。rawmats 0.4.2 ロード、ERROR なし。
+- 26.1.x: litematica 0.27.14 / malilib 0.28.12 / MC 26.1.2。rawmats 0.4.2 ロード、ERROR なし。
+- 26.2.x: litematica 0.28.8 / malilib 0.29.6。rawmats 0.4.2 ロード。例外は oshi (perf counter / OSProcess null) のみで、26.3 と同じく rawmats とは無関係。
+- これで「deps を上げた既存 3 系列の実機起動」の未検証項目は、起動 (タイトル画面) までは確認済み。ワールド内の GUI 操作は既存 3 系列では未確認。
+- 宣言 floor の版 (例: litematica 0.26.11) での起動は確認していない (maven から消えているため dev 環境では試せない)。
