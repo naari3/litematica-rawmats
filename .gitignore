@@ -27,5 +27,6 @@ __pycache__/
 # Scratch dir
 tmp/
 
-# fabric-loader-junit がテスト実行時に吐くログ
+# fabric-loader-junit がテスト実行時に吐くログと、同梱 (JiJ) jar の展開先
 logs/
+.fabric/

@@ -13,7 +13,7 @@ Fabric, with [malilib](https://github.com/sakura-ryoko/malilib) and [Litematica]
 | Minecraft | malilib | Litematica |
 | --- | --- | --- |
 | 26.3 | 0.30.2+ | 0.29.1+ |
-| 26.2 | 0.29.0+ | 0.28.3+ |
+| 26.2 | 0.29.2+ | 0.28.3+ |
 | 26.1 – 26.1.2 | 0.28.9+ | 0.27.9+ |
 | 1.21.11 | 0.27.16+ | 0.26.11+ |
 
