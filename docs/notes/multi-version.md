@@ -137,3 +137,20 @@
 - 26.2.x: litematica 0.28.8 / malilib 0.29.6。rawmats 0.4.2 ロード。例外は oshi (perf counter / OSProcess null) のみで、26.3 と同じく rawmats とは無関係。
 - これで「deps を上げた既存 3 系列の実機起動」の未検証項目は、起動 (タイトル画面) までは確認済み。ワールド内の GUI 操作は既存 3 系列では未確認。
 - 宣言 floor の版 (例: litematica 0.26.11) での起動は確認していない (maven から消えているため dev 環境では試せない)。
+
+## 2026-11-03 26.3 でマウスボタンの番号が変わっていた (クリック操作の不具合)
+
+観察:
+- 26.3 の実機で、行の左クリックで展開できない、左クリックで畳まれる、右クリックが効かない、という症状が出た。
+  デバッグ用のクリックログでは、左 = 1、中 = 2、右 = 3 で届いていた。
+- `com.mojang.blaze3d.platform.InputConstants` の値:
+  - 26.3: MOUSE_BUTTON_LEFT = 1 / MIDDLE = 2 / RIGHT = 3 (SDL の並びと思われる)
+  - 1.21.11 / 26.1.2 / 26.2: LEFT = 0 / RIGHT = 1 / MIDDLE = 2 (GLFW の並び)
+  - `MouseButtonEvent.input()` はどの版も生のボタン番号を返す。
+- rawmats は `click.input() == 0/1/2` と数値を直書きしていたため、26.3 ではずれていた。
+  2026-11-03 の 26.3 対応 (0.4.1 の手動テスト) では見落としていた (「大丈夫」との報告は主に表示の確認だったと思われる)。
+
+対応:
+- 直書きを `InputConstants.MOUSE_BUTTON_LEFT/RIGHT/MIDDLE` に置き換えた (GuiCraftDag / WidgetCraftTreeEntry)。
+  定数はコンパイル時に埋め込まれるので、版ごとのビルドで正しい値になる。
+- この不具合は 0.4.2 (未リリース) の 26.3 版にも入っている。

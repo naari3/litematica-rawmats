@@ -2,6 +2,7 @@ package io.github.naari3.rawmats.gui;
 
 import java.util.List;
 import javax.annotation.Nullable;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.world.item.ItemStack;
 
@@ -179,23 +180,23 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
         }
 
         // 左クリック = 展開、右クリック = 親へ畳む (Shift+右 = 除外)、中クリック = タグ材料の素材選択
-        if (click.input() == 1 && GuiBase.isShiftDown())
+        if (click.input() == InputConstants.MOUSE_BUTTON_RIGHT && GuiBase.isShiftDown())
         {
             this.listWidget.getGui().ignoreRow(this.row);
             return true;
         }
 
-        if (click.input() == 0 && this.row.expandable)
+        if (click.input() == InputConstants.MOUSE_BUTTON_LEFT && this.row.expandable)
         {
             this.listWidget.getGui().expandRow(this.row);
             return true;
         }
-        else if (click.input() == 1 && this.row.foldable)
+        else if (click.input() == InputConstants.MOUSE_BUTTON_RIGHT && this.row.foldable)
         {
             this.listWidget.getGui().foldRow(this.row, (int) click.x(), (int) click.y());
             return true;
         }
-        else if (click.input() == 2 && this.row.choosable)
+        else if (click.input() == InputConstants.MOUSE_BUTTON_MIDDLE && this.row.choosable)
         {
             this.listWidget.getGui().chooseRow(this.row, (int) click.x(), (int) click.y());
             return true;

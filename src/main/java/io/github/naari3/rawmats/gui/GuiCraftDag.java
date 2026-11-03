@@ -11,6 +11,7 @@ import java.util.Set;
 import javax.annotation.Nullable;
 import org.joml.Matrix3x2fStack;
 import net.minecraft.client.input.KeyEvent;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.Holder;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -665,13 +666,13 @@ public class GuiCraftDag extends GuiBase
         if (hit != null)
         {
             // リストと同じ操作系: 左 = 展開、右 = 畳む (Shift+右 = 除外)、中 = タグ素材の変更。
-            if (click.input() == 0 && this.tree.isExpandable(hit.item))
+            if (click.input() == InputConstants.MOUSE_BUTTON_LEFT && this.tree.isExpandable(hit.item))
             {
                 this.tree.expand(hit.item);
                 this.build();
                 return true;
             }
-            else if (click.input() == 1)
+            else if (click.input() == InputConstants.MOUSE_BUTTON_RIGHT)
             {
                 if (isShiftDown())
                 {
@@ -710,7 +711,7 @@ public class GuiCraftDag extends GuiBase
                     return true;
                 }
             }
-            else if (click.input() == 2)
+            else if (click.input() == InputConstants.MOUSE_BUTTON_MIDDLE)
             {
                 CraftNode rep = this.choosable.get(hit.item);
 
