@@ -3,7 +3,6 @@ package io.github.naari3.rawmats.materials;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.Holder;
-import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
@@ -49,22 +48,22 @@ public final class CraftListExport
 
         for (MatRow r : rows)
         {
-            String name = new ItemStack(r.item).getHoverName().getString();
+            String name = r.mat.displayName();
             sb.append(padLeft(Integer.toString(r.need), needW)).append("  ")
               .append(padLeft(Integer.toString(r.have), haveW)).append("  ")
               .append(name).append('\n');
         }
 
-        Map<TagKey<Item>, Holder<Item>> overrides = tree.getMaterialOverrides();
+        Map<String, Holder<Item>> overrides = tree.getMaterialOverrides();
 
         if (!overrides.isEmpty())
         {
             sb.append('\n').append("Selected materials:\n");
 
-            for (Map.Entry<TagKey<Item>, Holder<Item>> en : overrides.entrySet())
+            for (Map.Entry<String, Holder<Item>> en : overrides.entrySet())
             {
                 String item = new ItemStack(en.getValue()).getHoverName().getString();
-                sb.append("  #").append(en.getKey().location()).append(" -> ").append(item).append('\n');
+                sb.append("  ").append(en.getKey()).append(" -> ").append(item).append('\n');
             }
         }
 

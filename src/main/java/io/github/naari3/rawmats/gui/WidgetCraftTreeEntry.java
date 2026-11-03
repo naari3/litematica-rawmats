@@ -1,8 +1,12 @@
 package io.github.naari3.rawmats.gui;
 
+import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.Nullable;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.core.Holder;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 import fi.dy.masa.malilib.gui.GuiBase;
@@ -21,7 +25,9 @@ import fi.dy.masa.malilib.util.input.KeyCodes;
 import fi.dy.masa.malilib.util.StringUtils;
 import fi.dy.masa.litematica.gui.Icons;
 
+import io.github.naari3.rawmats.Reference;
 import io.github.naari3.rawmats.materials.CraftTree;
+import io.github.naari3.rawmats.materials.Mat;
 import io.github.naari3.rawmats.materials.MatRow;
 
 /**
@@ -31,6 +37,7 @@ import io.github.naari3.rawmats.materials.MatRow;
  *
  * 専用機能はマーカーで残す: 左クリック展開 / 右クリック畳み / 中クリックでタグ材料の素材選択。
  * マーカー [+]=展開可 / [-]=畳み可 / [±]=両方、[*]=タグ材料 (素材選択可)。
+ * タグ材料の「任意」の行は、アイコンがタグ内のアイテムを巡回する。
  */
 public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
 {
@@ -101,7 +108,7 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
 
         for (MatRow r : rows)
         {
-            String name = new ItemStack(r.item).getHoverName().getString();
+            String name = r.mat.displayName();
             maxNameLength    = Math.max(maxNameLength,    StringUtils.getStringWidth(name));
             maxTotalLength   = Math.max(maxTotalLength,   StringUtils.getStringWidth(String.valueOf(r.total)));
             maxMissingLength = Math.max(maxMissingLength, StringUtils.getStringWidth(String.valueOf(r.need)));
@@ -151,6 +158,12 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
     {
         if (this.listWidget.getGui().hasPopup())
         {
+            // デバッグ時のクリック追跡。ログファイルは INFO 以上なので debug ではなく info で出す。
+            if (Reference.LOGGER.isDebugEnabled())
+            {
+                Reference.LOGGER.info("[rawmats] row click ignored: popup open (row={})",
+                        this.row != null ? this.row.mat.id() : "<header>");
+            }
             return false;
         }
 
@@ -178,24 +191,30 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
             return false;
         }
 
+        if (Reference.LOGGER.isDebugEnabled())
+        {
+            Reference.LOGGER.info("[rawmats] row click button={} shift={} row={} expandable={} foldable={} choosable={}",
+                    click.input(), GuiBase.isShiftDown(), this.row.mat.id(), this.row.expandable, this.row.foldable, this.row.choosable);
+        }
+
         // 左クリック = 展開、右クリック = 親へ畳む (Shift+右 = 除外)、中クリック = タグ材料の素材選択
-        if (click.input() == 1 && GuiBase.isShiftDown())
+        if (click.input() == InputConstants.MOUSE_BUTTON_RIGHT && GuiBase.isShiftDown())
         {
             this.listWidget.getGui().ignoreRow(this.row);
             return true;
         }
 
-        if (click.input() == 0 && this.row.expandable)
+        if (click.input() == InputConstants.MOUSE_BUTTON_LEFT && this.row.expandable)
         {
             this.listWidget.getGui().expandRow(this.row);
             return true;
         }
-        else if (click.input() == 1 && this.row.foldable)
+        else if (click.input() == InputConstants.MOUSE_BUTTON_RIGHT && this.row.foldable)
         {
             this.listWidget.getGui().foldRow(this.row, (int) click.x(), (int) click.y());
             return true;
         }
-        else if (click.input() == 2 && this.row.choosable)
+        else if (click.input() == InputConstants.MOUSE_BUTTON_MIDDLE && this.row.choosable)
         {
             this.listWidget.getGui().chooseRow(this.row, (int) click.x(), (int) click.y());
             return true;
@@ -257,10 +276,10 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
 
         // アイコン + 名前
         int iconX = x1 + MARK_W;
-        ItemStack stack = new ItemStack(this.row.item);
+        ItemStack stack = new ItemStack(this.row.mat.icon());
         RenderUtils.drawRect(ctx, iconX, this.y + 3, 16, 16, 0x20FFFFFF);
         ctx.renderItem(stack, iconX, this.y + 3);
-        String name = stack.getHoverName().getString();
+        String name = this.row.mat.displayName();
         this.drawString(ctx, iconX + 20, y, color, name);
 
         // タグ材料 (中クリックで素材選択可) のマーカー
@@ -307,14 +326,15 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
         String hMissing = GuiBase.TXT_BOLD + StringUtils.translate(HEADERS[2]);
         String hAvail   = GuiBase.TXT_BOLD + StringUtils.translate(HEADERS[3]);
 
-        ItemStack stack = new ItemStack(this.row.item);
-        String name = stack.getHoverName().getString();
-        int maxStack = stack.getMaxStackSize();
+        ItemStack stack = new ItemStack(this.row.mat.icon());
+        String name = this.row.mat.displayName();
+        int maxStack = new ItemStack(this.row.item).getMaxStackSize();
         String sTotal   = this.getFormattedCountString(this.row.total, maxStack);
         String sMissing = this.getFormattedCountString(this.row.need, maxStack);
         String sAvail   = this.getFormattedCountString(this.row.have, maxStack);
 
         String hint = recipe != null ? StringUtils.translate("rawmats.gui.label.recipe.hint") : null;
+        String excluded = excludedLine(this.listWidget.getTree(), this.row.mat);
 
         int w1 = Math.max(this.getStringWidth(hItem),
                  Math.max(this.getStringWidth(hTotal),
@@ -328,6 +348,12 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
         if (hint != null)
         {
             boxWidth = Math.max(boxWidth, this.getStringWidth(hint) + 20);
+            boxHeight += 14;
+        }
+
+        if (excluded != null)
+        {
+            boxWidth = Math.max(boxWidth, this.getStringWidth(excluded) + 20);
             boxHeight += 14;
         }
 
@@ -359,6 +385,12 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
         this.drawString(ctx, x1, y, 0xFFFFFFFF, hAvail);
         this.drawString(ctx, x2, y, 0xFFFFFFFF, sAvail);
 
+        if (excluded != null)
+        {
+            y += 16;
+            this.drawString(ctx, x1, y, 0xFF909090, excluded);
+        }
+
         if (hint != null)
         {
             y += 16;
@@ -367,6 +399,32 @@ public class WidgetCraftTreeEntry extends WidgetListEntrySortable<MatRow>
 
         RenderUtils.drawRect(ctx, x2, yIcon, 16, 16, 0x20FFFFFF);
         ctx.renderItem(stack, x2, yIcon);
+    }
+
+    /** 「任意」の行で、分解にまとめられなかったメンバー (竹の板材など) の一覧行。無ければ null。 */
+    @Nullable
+    static String excludedLine(CraftTree tree, Mat mat)
+    {
+        if (!(mat instanceof Mat.AnyOf any))
+        {
+            return null;
+        }
+
+        CraftTree.AnyShape shape = tree.anyShape(any);
+
+        if (shape == null || shape.excluded().isEmpty())
+        {
+            return null;
+        }
+
+        List<String> names = new ArrayList<>();
+
+        for (Holder<Item> h : shape.excluded())
+        {
+            names.add(new ItemStack(h).getHoverName().getString());
+        }
+
+        return StringUtils.translate("rawmats.gui.label.any_excludes", String.join(", ", names));
     }
 
     /** 個数を「N = S x 64 + R = X.XX SB」形式 (スタック数 / シュルカー箱換算) に整形する。本家と同じ。 */

@@ -74,6 +74,11 @@ public class CraftTreeIgnoreTest
         return BuiltInRegistries.ITEM.wrapAsHolder(item);
     }
 
+    private static Mat mat(Item item)
+    {
+        return Mat.of(holder(item));
+    }
+
     private static CraftTree.Demand demand(Item item, int count)
     {
         return new CraftTree.Demand(holder(item), count);
@@ -101,9 +106,9 @@ public class CraftTreeIgnoreTest
                 demand(Items.OAK_SIGN, 3),
                 demand(Items.OAK_FENCE_GATE, 2));
 
-        tree.ignore(Items.OAK_TRAPDOOR);
-        tree.ignore(Items.OAK_SIGN);
-        tree.ignore(Items.OAK_FENCE_GATE);
+        tree.ignore(mat(Items.OAK_TRAPDOOR));
+        tree.ignore(mat(Items.OAK_SIGN));
+        tree.ignore(mat(Items.OAK_FENCE_GATE));
         tree.expandAll();
 
         List<MatRow> rows = tree.getDisplayRows();
@@ -126,7 +131,7 @@ public class CraftTreeIgnoreTest
         assertEquals(9, rowOf(tree.getDisplayRows(), Items.OAK_LOG).orElseThrow().total);
 
         // trapdoor を ignore: planks 16 (sign 6 + gate 4 + stick 6) -> log 4。
-        tree.ignore(Items.OAK_TRAPDOOR);
+        tree.ignore(mat(Items.OAK_TRAPDOOR));
         List<MatRow> rows = tree.getDisplayRows();
         assertEquals(4, rowOf(rows, Items.OAK_LOG).orElseThrow().total);
         assertTrue(rowOf(rows, Items.OAK_TRAPDOOR).isEmpty());
@@ -142,7 +147,7 @@ public class CraftTreeIgnoreTest
 
         assertEquals(2, tree.getDisplayRows().size());
 
-        tree.ignore(Items.OAK_TRAPDOOR);
+        tree.ignore(mat(Items.OAK_TRAPDOOR));
         List<MatRow> rows = tree.getDisplayRows();
         assertTrue(rowOf(rows, Items.OAK_TRAPDOOR).isEmpty());
         assertEquals(3, rowOf(rows, Items.OAK_SIGN).orElseThrow().total);
@@ -157,7 +162,7 @@ public class CraftTreeIgnoreTest
     {
         CraftTree tree = tree(demand(Items.OAK_TRAPDOOR, 6));
 
-        tree.ignore(Items.OAK_PLANKS);
+        tree.ignore(mat(Items.OAK_PLANKS));
         tree.expandAll();
 
         List<MatRow> rows = tree.getDisplayRows();
@@ -173,7 +178,7 @@ public class CraftTreeIgnoreTest
                 demand(Items.OAK_SIGN, 3),
                 demand(Items.OAK_TRAPDOOR, 6));
 
-        tree.ignore(Items.OAK_TRAPDOOR);
+        tree.ignore(mat(Items.OAK_TRAPDOOR));
         tree.setMultiplier(2); // sign 6 -> 2 crafts -> planks 12 + stick 2; stick 2 -> planks 2; planks 14 -> log 4
         tree.setAvailableForTest(Items.OAK_LOG, 3);
         tree.expandAll();
@@ -192,7 +197,7 @@ public class CraftTreeIgnoreTest
                 demand(Items.OAK_TRAPDOOR, 6),
                 demand(Items.OAK_SIGN, 3));
 
-        tree.ignore(Items.OAK_TRAPDOOR);
+        tree.ignore(mat(Items.OAK_TRAPDOOR));
         tree.setAvailableForTest(Items.OAK_PLANKS, 4);
         tree.expandAll();
 
