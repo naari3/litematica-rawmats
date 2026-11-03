@@ -12,22 +12,33 @@ import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.GuiUtils;
 
+import io.github.naari3.rawmats.materials.Mat;
+
 /**
- * fold 先が複数のときだけ出す、アイコン式の一時ポップアップ。
- * 候補アイテムをアイコンで縦に並べ、ホバーで名前を右に表示。クリックで実行。
+ * fold 先・素材選択などの、アイコン式の一時ポップアップ。
+ * 候補をアイコンで縦に並べ (画面に収まらなければ列を折り返す)、ホバーで名前を右に表示。クリックで実行。
+ * 「任意」の候補はアイコンがメンバーを巡回する。現在の選択は金枠で示す。
  */
 public class WidgetCraftMenu extends WidgetContainer
 {
     private static final int CELL = 20;
     private static final int PAD = 2;
+    private static final int COLOR_SELECTED = 0xFFE0B040;
 
     private final List<Entry> entries;
     /** エントリ実行後に呼ぶ (ポップアップを閉じて画面を更新する)。 */
     private final Runnable onDone;
+    private final int rows;
 
     public WidgetCraftMenu(int x, int y, List<Entry> entries, Runnable onDone)
     {
-        super(x, y, CELL + PAD * 2, entries.size() * CELL + PAD * 2);
+        super(x, y, 0, 0);
+
+        int maxRows = Math.max(1, (GuiUtils.getScaledWindowHeight() - 8 - PAD * 2) / CELL);
+        this.rows = Math.max(1, Math.min(entries.size(), maxRows));
+        int cols = Math.max(1, (entries.size() + this.rows - 1) / this.rows);
+        this.setWidth(cols * CELL + PAD * 2);
+        this.setHeight(this.rows * CELL + PAD * 2);
 
         this.entries = entries;
         this.onDone = onDone;
@@ -36,16 +47,23 @@ public class WidgetCraftMenu extends WidgetContainer
 
     private int indexAt(int mouseX, int mouseY)
     {
-        if (mouseX < this.x + PAD || mouseX > this.x + PAD + CELL)
+        int relX = mouseX - (this.x + PAD);
+        int relY = mouseY - (this.y + PAD);
+
+        if (relX < 0 || relY < 0)
         {
             return -1;
         }
-        int rel = mouseY - (this.y + PAD);
-        if (rel < 0)
+
+        int col = relX / CELL;
+        int row = relY / CELL;
+
+        if (row >= this.rows)
         {
             return -1;
         }
-        int i = rel / CELL;
+
+        int i = col * this.rows + row;
         return (i >= 0 && i < this.entries.size()) ? i : -1;
     }
 
@@ -71,22 +89,27 @@ public class WidgetCraftMenu extends WidgetContainer
 
         for (int i = 0; i < this.entries.size(); i++)
         {
-            int cx = this.x + PAD;
-            int cy = this.y + PAD + i * CELL;
+            int cx = this.x + PAD + (i / this.rows) * CELL;
+            int cy = this.y + PAD + (i % this.rows) * CELL;
+            Entry e = this.entries.get(i);
 
             if (i == hov)
             {
                 RenderUtils.drawRect(ctx, cx, cy, CELL, CELL, 0xA0707070);
             }
 
-            ItemStack stack = new ItemStack(this.entries.get(i).item());
-            ctx.renderItem(stack, cx + 2, cy + 2);
+            if (e.selected())
+            {
+                RenderUtils.drawOutlinedBox(ctx, cx, cy, CELL, CELL, 0x00000000, COLOR_SELECTED);
+            }
+
+            ctx.renderItem(new ItemStack(e.mat().icon()), cx + 2, cy + 2);
         }
 
-        // ホバー中のアイテム名を右側に (画面右端からはみ出すなら左側に反転)
+        // ホバー中の名前を右側に (画面右端からはみ出すなら左側に反転)
         if (hov >= 0)
         {
-            String name = new ItemStack(this.entries.get(hov).item()).getHoverName().getString();
+            String name = this.entries.get(hov).label();
             int w = this.getStringWidth(name);
             int nx = this.x + this.width + 3;
 
@@ -95,11 +118,27 @@ public class WidgetCraftMenu extends WidgetContainer
                 nx = this.x - w - 5;
             }
 
-            int ny = this.y + PAD + hov * CELL;
+            int ny = this.y + PAD + (hov % this.rows) * CELL;
             RenderUtils.drawRect(ctx, nx - 2, ny, w + 4, CELL, 0xF0101010);
             this.drawString(ctx, nx, ny + 6, 0xFFFFFFFF, name);
         }
     }
 
-    public record Entry(Holder<Item> item, Runnable action) { }
+    /**
+     * @param mat      アイコンにする単位 (「任意」なら巡回表示)
+     * @param label    ホバー時に出す名前
+     * @param selected 現在の選択か (金枠)
+     */
+    public record Entry(Mat mat, String label, boolean selected, Runnable action)
+    {
+        public Entry(Holder<Item> item, Runnable action)
+        {
+            this(Mat.of(item), new ItemStack(item).getHoverName().getString(), false, action);
+        }
+
+        public Entry(Mat mat, Runnable action)
+        {
+            this(mat, mat.displayName(), false, action);
+        }
+    }
 }

@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
+import net.minecraft.tags.TagKey;
 import net.minecraft.util.context.ContextMap;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -218,7 +219,7 @@ public class RecipeTooltip
     {
         if (slot instanceof SlotDisplay.TagSlotDisplay tag)
         {
-            Holder<Item> override = tree.getMaterialOverrides().get(tag.tag());
+            Holder<Item> override = tree.getMaterialOverride(tagKeyOf(tag.tag()));
 
             if (override != null)
             {
@@ -240,6 +241,27 @@ public class RecipeTooltip
 
         int idx = (int) ((System.currentTimeMillis() / 1000L) % stacks.size());
         return stacks.get(idx);
+    }
+
+    /**
+     * {@link SlotDisplay.TagSlotDisplay#tag()} のタグキー。版によって TagKey (〜26.2) か
+     * HolderSet (26.3〜) を返すので両方を受ける。
+     */
+    @Nullable
+    @SuppressWarnings("unchecked")
+    private static TagKey<Item> tagKeyOf(Object tag)
+    {
+        if (tag instanceof TagKey<?> key)
+        {
+            return (TagKey<Item>) key;
+        }
+
+        if (tag instanceof HolderSet<?> set)
+        {
+            return (TagKey<Item>) set.unwrapKey().orElse(null);
+        }
+
+        return null;
     }
 
     /** 出力アイテム自身が材料候補に含まれるか (bed + dye のような染め直しレシピの検出)。 */

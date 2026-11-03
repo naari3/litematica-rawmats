@@ -1,16 +1,17 @@
 package io.github.naari3.rawmats.materials;
 
-import java.util.List;
 import javax.annotation.Nullable;
 import net.minecraft.core.Holder;
-import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 
 /**
- * フラット買い物リストの 1 行 (同一アイテムは合算済み)。
+ * フラット買い物リストの 1 行 (同一単位は合算済み)。
  */
 public class MatRow
 {
+    /** 行の単位 (具体アイテム / タグ材料の「任意」)。 */
+    public final Mat mat;
+    /** 代表アイテム (レシピ表示・ツールチップのアイコン既定に使う)。 */
     public final Holder<Item> item;
     /** 必要総数 (在庫差引前の gross)。本家の Total 列に相当。 */
     public final int total;
@@ -22,24 +23,22 @@ public class MatRow
     public final boolean expandable;
     /** 展開中の親へ畳み戻せるか。 */
     public final boolean foldable;
-    /** タグ材料 (any planks 等) 由来で、別の具体素材に置換できるか。 */
+    /** タグ材料由来で、別の具体素材や「任意」に切り替えられるか。 */
     public final boolean choosable;
-    /** 置換キー (タグ)。choosable のときのみ非 null。 */
-    @Nullable public final TagKey<Item> choiceKey;
-    /** 置換候補一覧。choosable のときのみ非 null。 */
-    @Nullable public final List<Holder<Item>> choices;
+    /** 素材選択メニューの元になるノード (タグスロットと親タグの情報を持つ)。choosable のときのみ非 null。 */
+    @Nullable public final CraftNode choiceNode;
 
-    public MatRow(Holder<Item> item, int total, int need, int have, boolean expandable, boolean foldable,
-            boolean choosable, @Nullable TagKey<Item> choiceKey, @Nullable List<Holder<Item>> choices)
+    public MatRow(Mat mat, int total, int need, int have, boolean expandable, boolean foldable,
+            @Nullable CraftNode choiceNode)
     {
-        this.item = item;
+        this.mat = mat;
+        this.item = mat.rep();
         this.total = total;
         this.need = need;
         this.have = have;
         this.expandable = expandable;
         this.foldable = foldable;
-        this.choosable = choosable;
-        this.choiceKey = choiceKey;
-        this.choices = choices;
+        this.choosable = choiceNode != null;
+        this.choiceNode = choiceNode;
     }
 }

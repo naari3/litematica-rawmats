@@ -178,3 +178,20 @@ masa maven の最新版へ一括で上げるスクリプトを置く方法 (twea
 残る懸念 (仮説):
 - 今後また advisory が出ると、Modrinth でも floor 未満の版がまとめて消える可能性がある。floor を修正版に合わせて上げる運用なら影響は小さいと思われる。
 - CI の actions/cache は restore-keys で前方一致の復元をするので、キャッシュがある間は依存が消えても気づけない。
+
+## 2026-11-03 26.3 でマウスボタンの番号が変わっていた (クリック操作の不具合)
+
+観察:
+- 26.3 の実機で、行の左クリックで展開できない、左クリックで畳まれる、右クリックが効かない、という症状が出た。
+  デバッグ用のクリックログでは、左 = 1、中 = 2、右 = 3 で届いていた。
+- `com.mojang.blaze3d.platform.InputConstants` の値:
+  - 26.3: MOUSE_BUTTON_LEFT = 1 / MIDDLE = 2 / RIGHT = 3 (SDL の並びと思われる)
+  - 1.21.11 / 26.1.2 / 26.2: LEFT = 0 / RIGHT = 1 / MIDDLE = 2 (GLFW の並び)
+  - `MouseButtonEvent.input()` はどの版も生のボタン番号を返す。
+- rawmats は `click.input() == 0/1/2` と数値を直書きしていたため、26.3 ではずれていた。
+  2026-11-03 の 26.3 対応 (0.4.1 の手動テスト) では見落としていた (「大丈夫」との報告は主に表示の確認だったと思われる)。
+
+対応:
+- 直書きを `InputConstants.MOUSE_BUTTON_LEFT/RIGHT/MIDDLE` に置き換えた (GuiCraftDag / WidgetCraftTreeEntry)。
+  定数はコンパイル時に埋め込まれるので、版ごとのビルドで正しい値になる。
+- この不具合は 0.4.2 (未リリース) の 26.3 版にも入っている。

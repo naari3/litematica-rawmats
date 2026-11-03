@@ -11,6 +11,7 @@ import java.util.Set;
 import javax.annotation.Nullable;
 import org.joml.Matrix3x2fStack;
 import net.minecraft.client.input.KeyEvent;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.Holder;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -35,8 +36,10 @@ import fi.dy.masa.malilib.util.input.KeyCodes;
 *///?}
 import fi.dy.masa.malilib.util.StringUtils;
 
+import io.github.naari3.rawmats.Reference;
 import io.github.naari3.rawmats.materials.CraftNode;
 import io.github.naari3.rawmats.materials.CraftTree;
+import io.github.naari3.rawmats.materials.Mat;
 
 /**
  * クラフトフロー: 手順ビュー ({@link CraftSteps}) と同じ「アイテム種別でまとめた DAG」を、
@@ -82,8 +85,8 @@ public class GuiCraftDag extends GuiBase
 
     private final CraftTree tree;
     private final List<DNode> nodes = new ArrayList<>();
-    /** タグ素材変更が可能な型 -> 代表ノード (CraftSteps の集計から)。 */
-    private Map<Item, CraftNode> choosable = Map.of();
+    /** タグ素材変更が可能な単位 -> 代表ノード (分解パスの集計から)。 */
+    private Map<Mat, CraftNode> choosable = Map.of();
     /** Tab 長押しレシピ表示の lookup キャッシュ (GuiCraftTree と同じ方式)。 */
     private final Map<Item, Optional<RecipeTooltip>> recipeCache = new HashMap<>();
     @Nullable private WidgetCraftMenu popup;
@@ -134,7 +137,14 @@ public class GuiCraftDag extends GuiBase
 
         // リストと同じトグル (状態共有)。切替時はラベル更新のためボタンを作り直す。
         ButtonOnOff hide = new ButtonOnOff(x, 24, -1, false, "rawmats.gui.button.hide_available", this.tree.getHideAvailable());
-        this.addButton(hide, new HideAvailableListener(this));
+        x += this.addButton(hide, new HideAvailableListener(this)).getWidth() + 2;
+
+        // デバッグ起動 (-Drawmats.debug) のときだけ、状態ダンプのボタンを出す。
+        if (Reference.LOGGER.isDebugEnabled())
+        {
+            ButtonGeneric dump = new ButtonGeneric(x, 24, -1, 20, StringUtils.translate("rawmats.gui.button.dump_state"));
+            this.addButton(dump, new DumpStateListener(this));
+        }
 
         if (!this.tree.hasIgnored())
         {
@@ -161,7 +171,7 @@ public class GuiCraftDag extends GuiBase
      */
     private void openIgnoredMenu()
     {
-        List<Item> ignored = this.tree.getIgnored();
+        List<Mat> ignored = this.tree.getIgnored();
 
         if (ignored.isEmpty())
         {
@@ -171,10 +181,9 @@ public class GuiCraftDag extends GuiBase
 
         List<WidgetCraftMenu.Entry> entries = new ArrayList<>();
 
-        for (Item it : ignored)
+        for (Mat m : ignored)
         {
-            Holder<Item> holder = BuiltInRegistries.ITEM.wrapAsHolder(it);
-            entries.add(new WidgetCraftMenu.Entry(holder, () -> this.tree.unignore(it)));
+            entries.add(new WidgetCraftMenu.Entry(m, () -> this.tree.unignore(m)));
         }
 
         this.popup = new WidgetCraftMenu(this.ignoredBtnX, 46, entries, this::onIgnoredMenuDone);
@@ -202,26 +211,25 @@ public class GuiCraftDag extends GuiBase
         CraftTree.NetPass pass = this.tree.computeNetPass();
         this.choosable = pass.choosable;
 
-        Set<Item> rootTypes = new HashSet<>();
+        Set<Mat> rootTypes = new HashSet<>();
         for (CraftNode r : this.tree.getRoots())
         {
-            rootTypes.add(r.item.value());
+            rootTypes.add(r.mat());
         }
 
-        // ノード登録: frontier (集める/充足で停止、col 0) と crafted (在庫ネット後にクラフトする型)。
-        Map<Item, DNode> byItem = new LinkedHashMap<>();
+        // ノード登録: frontier (集める/充足で停止、col 0) と crafted (在庫ネット後にクラフトする単位)。
+        Map<Mat, DNode> byItem = new LinkedHashMap<>();
 
-        for (Map.Entry<Item, Long> en : pass.frontierGross.entrySet())
+        for (Map.Entry<Mat, Long> en : pass.frontierGross.entrySet())
         {
-            Item it = en.getKey();
+            Mat it = en.getKey();
 
             if (pass.crafted.containsKey(it))
             {
                 continue; // cycle 救済の残量は crafted 側の表示を優先
             }
 
-            Holder<Item> holder = BuiltInRegistries.ITEM.wrapAsHolder(it);
-            int have = this.tree.availableFor(holder);
+            int have = (int) Math.min(Integer.MAX_VALUE, pass.frontierHave.getOrDefault(it, 0L));
 
             // リストの「在庫済みを隠す」と同じ: 充足した frontier ノードを (辺ごと) 消す。
             // crafted は定義上未充足なので対象外 = グラフの繋がりは壊れない。
@@ -230,7 +238,7 @@ public class GuiCraftDag extends GuiBase
                 continue;
             }
 
-            DNode n = new DNode(holder, en.getValue(), en.getValue(), false,
+            DNode n = new DNode(it, en.getValue(), en.getValue(), false,
                     rootTypes.contains(it), this.choosable.containsKey(it), have);
             n.col = 0;
             byItem.put(it, n);
@@ -240,19 +248,19 @@ public class GuiCraftDag extends GuiBase
 
         for (CraftTree.NetPass.Crafted c : crafted)
         {
-            Item it = c.item().value();
-            byItem.put(it, new DNode(c.item(), c.gross(), c.toCraft(), true,
-                    rootTypes.contains(it), this.choosable.containsKey(it), this.tree.availableFor(c.item())));
+            Mat it = c.mat();
+            byItem.put(it, new DNode(it, c.gross(), c.toCraft(), true,
+                    rootTypes.contains(it), this.choosable.containsKey(it), this.tree.availableFor(it)));
         }
 
         // 列割り当て + 辺: crafted の逆順 = 素材→成果物の順なので、材料の列は (cycle を除き) 決定済み。
         for (int i = crafted.size() - 1; i >= 0; i--)
         {
             CraftTree.NetPass.Crafted c = crafted.get(i);
-            DNode out = byItem.get(c.item().value());
+            DNode out = byItem.get(c.mat());
             int col = 1;
 
-            for (Item in : c.childCounts().keySet())
+            for (Mat in : c.childCounts().keySet())
             {
                 DNode inNode = byItem.get(in);
 
@@ -510,7 +518,7 @@ public class GuiCraftDag extends GuiBase
     {
         // Tab 長押し: レシピ表示 (リストと同じ)。
         RecipeTooltip recipe = this.recipeCache
-                .computeIfAbsent(n.item, it -> Optional.ofNullable(RecipeTooltip.lookup(n.holder)))
+                .computeIfAbsent(n.holder.value(), it -> Optional.ofNullable(RecipeTooltip.lookup(n.holder)))
                 .orElse(null);
 
         if (recipe != null && KeybindMulti.isKeyDown(KeyCodes.KEY_TAB))
@@ -520,7 +528,7 @@ public class GuiCraftDag extends GuiBase
         }
 
         List<Component> lines = new ArrayList<>();
-        lines.add(n.stack.getHoverName());
+        lines.add(Component.literal(n.item.displayName()));
         lines.add(Component.literal(StringUtils.translate("rawmats.gui.label.title.total") + ": " + n.gross)
                 .withStyle(st -> st.withColor(0xC0C0C0)));
 
@@ -537,9 +545,16 @@ public class GuiCraftDag extends GuiBase
 
         CraftNode rep = this.choosable.get(n.item);
 
-        if (rep != null && rep.choiceKey != null)
+        if (rep != null && rep.choice != null && !(n.item instanceof Mat.AnyOf))
         {
-            lines.add(Component.literal("#" + rep.choiceKey.location()).withStyle(st -> st.withColor(0xE0B040)));
+            lines.add(Component.literal(rep.choice.displayName()).withStyle(st -> st.withColor(0xE0B040)));
+        }
+
+        String excluded = WidgetCraftTreeEntry.excludedLine(this.tree, n.item);
+
+        if (excluded != null)
+        {
+            lines.add(Component.literal(excluded).withStyle(st -> st.withColor(0x909090)));
         }
 
         if (this.tree.isExpandable(n.item))
@@ -585,7 +600,7 @@ public class GuiCraftDag extends GuiBase
         }
 
         RenderUtils.drawRect(ctx, n.x + 2, n.y - 8, 16, 16, n.craftable ? 0x20FFFFFF : COLOR_LEAF_BG);
-        ctx.renderItem(n.stack, n.x + 2, n.y - 8);
+        ctx.renderItem(new ItemStack(n.item.icon()), n.x + 2, n.y - 8);
         ctx.drawString(this.font, n.countText, n.x + 21, n.y - 4, n.countColor);
 
         if (n.covered)
@@ -665,13 +680,13 @@ public class GuiCraftDag extends GuiBase
         if (hit != null)
         {
             // リストと同じ操作系: 左 = 展開、右 = 畳む (Shift+右 = 除外)、中 = タグ素材の変更。
-            if (click.input() == 0 && this.tree.isExpandable(hit.item))
+            if (click.input() == InputConstants.MOUSE_BUTTON_LEFT && this.tree.isExpandable(hit.item))
             {
                 this.tree.expand(hit.item);
                 this.build();
                 return true;
             }
-            else if (click.input() == 1)
+            else if (click.input() == InputConstants.MOUSE_BUTTON_RIGHT)
             {
                 if (isShiftDown())
                 {
@@ -702,7 +717,7 @@ public class GuiCraftDag extends GuiBase
 
                         for (DNode c : hit.consumers)
                         {
-                            entries.add(new WidgetCraftMenu.Entry(c.holder, () -> this.tree.collapse(c.item)));
+                            entries.add(new WidgetCraftMenu.Entry(c.item, () -> this.tree.collapse(c.item)));
                         }
 
                         this.openPopupAt((int) click.x(), (int) click.y(), entries);
@@ -710,13 +725,13 @@ public class GuiCraftDag extends GuiBase
                     return true;
                 }
             }
-            else if (click.input() == 2)
+            else if (click.input() == InputConstants.MOUSE_BUTTON_MIDDLE)
             {
                 CraftNode rep = this.choosable.get(hit.item);
 
                 if (rep != null && rep.isChoosable())
                 {
-                    this.openChoicePopup(rep, (int) click.x(), (int) click.y());
+                    this.openChoicePopup(rep, hit.item, (int) click.x(), (int) click.y());
                     return true;
                 }
             }
@@ -727,16 +742,14 @@ public class GuiCraftDag extends GuiBase
     }
 
     /** タグ素材の候補ポップアップ (リストの中クリックと同じ UI)。 */
-    private void openChoicePopup(CraftNode rep, int mouseX, int mouseY)
+    private void openChoicePopup(CraftNode rep, Mat current, int mouseX, int mouseY)
     {
-        List<WidgetCraftMenu.Entry> entries = new ArrayList<>();
+        List<WidgetCraftMenu.Entry> entries = ChoiceMenu.build(this.tree, rep, current);
 
-        for (Holder<Item> cand : rep.choices)
+        if (!entries.isEmpty())
         {
-            entries.add(new WidgetCraftMenu.Entry(cand, () -> this.tree.chooseMaterial(rep.choiceKey, cand)));
+            this.openPopupAt(mouseX, mouseY, entries);
         }
-
-        this.openPopupAt(mouseX, mouseY, entries);
     }
 
     /** アイコンポップアップをマウス位置に、画面内にクランプして開く。 */
@@ -815,11 +828,13 @@ public class GuiCraftDag extends GuiBase
         return true;
     }
 
-    /** DAG の 1 ノード (アイテム種別単位)。craftable = 在庫ネット後にクラフトする型 (材料の辺を持つ)。 */
+    /** DAG の 1 ノード (集計の単位ごと)。craftable = 在庫ネット後にクラフトする単位 (材料の辺を持つ)。 */
     private static class DNode
     {
+        /** 代表アイテム (レシピ表示用)。 */
         final Holder<Item> holder;
-        final Item item;
+        /** 集計の単位 (「任意」ならアイコンが巡回する)。 */
+        final Mat item;
         /** 総需要。 */
         final long gross;
         /** 表示する数。frontier は総需要、crafted は在庫ネット後のクラフト数 (toCraft)。 */
@@ -828,7 +843,6 @@ public class GuiCraftDag extends GuiBase
         final boolean isRoot;
         final boolean choosable;
         final int have;
-        final ItemStack stack;
         final String countText;
         final int countColor;
         /** 在庫で充足 (チェックマークを描く)。 */
@@ -839,18 +853,17 @@ public class GuiCraftDag extends GuiBase
         int col;
         int x, y;
 
-        DNode(Holder<Item> holder, long gross, long shown, boolean craftable,
+        DNode(Mat mat, long gross, long shown, boolean craftable,
                 boolean isRoot, boolean choosable, int have)
         {
-            this.holder = holder;
-            this.item = holder.value();
+            this.holder = mat.rep();
+            this.item = mat;
             this.gross = gross;
             this.shown = shown;
             this.craftable = craftable;
             this.isRoot = isRoot;
             this.choosable = choosable;
             this.have = have;
-            this.stack = new ItemStack(holder);
 
             // 在庫表示 (frontier / crafted 共通): 充足 = 緑 + チェック (スプライト)、
             // 一部 = 金で have/gross、無し = 白で gross。crafted のクラフト数はツールチップで見せる。
@@ -917,6 +930,21 @@ public class GuiCraftDag extends GuiBase
             this.parent.popup = null;
             this.parent.rebuildButtons();
             this.parent.build();
+        }
+    }
+
+    private record DumpStateListener(GuiCraftDag parent) implements IButtonActionListener
+    {
+        @Override
+        public void actionPerformedWithButton(ButtonBase button, int mouseButton)
+        {
+            java.nio.file.Path file = GuiCraftTree.writeStateDump(this.parent.tree);
+
+            if (file != null)
+            {
+                this.parent.addMessage(fi.dy.masa.malilib.gui.Message.MessageType.SUCCESS,
+                        "rawmats.message.exported", file.getFileName().toString());
+            }
         }
     }
 
