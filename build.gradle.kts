@@ -15,15 +15,14 @@ repositories {
         forRepository { maven(url) { name = alias } }
         filter { groups.forEach(::includeGroupAndSubgroups) }
     }
-    // malilib / litematica (sakura-ryoko fork) はここに publish されている
-    strictMaven("https://masa.dy.fi/maven/sakura-ryoko", "MasaModding", "fi.dy.masa")
-    // conditional-mixin (malilib/litematica の推移的依存)
+    // malilib / litematica (sakura-ryoko fork) は Modrinth maven から取る。
+    // masa maven (masa.dy.fi/maven/sakura-ryoko) は系列ごとに最新の数版しか残さず、固定した版が消えて
+    // ビルドが壊れるため (docs/notes/multi-version.md 2026-11-03)。
+    // 座標は maven.modrinth:<slug>:<version_number>。0.26 以降の版番号は MC 系列をまたいで重複しないので、
+    // version_number だけで系列ごとの jar に一意に決まる。
+    strictMaven("https://api.modrinth.com/maven", "Modrinth", "maven.modrinth")
+    // conditional-mixin (deps.dev_runtime 用。malilib/litematica に同梱されているものと同じ版)
     strictMaven("https://maven.fallenbreath.me/releases", "FallenBreath", "me.fallenbreath")
-    // com.github は jitpack 以外にも本物の group がある (com.github.oshi 等) ので排他にしない
-    maven("https://jitpack.io") {
-        name = "Jitpack"
-        content { includeGroupAndSubgroups("com.github") }
-    }
 }
 
 dependencies {
@@ -36,8 +35,14 @@ dependencies {
 
     // 依存 mod。Litematica 本体の materials/json サブシステムを呼ぶためコンパイル依存する。
     // mod* は 26.1+ では loom-back-compat が plain 構成へ変換する。
-    modImplementation("fi.dy.masa.malilib:malilib-fabric-${sc.current.version}:${property("deps.malilib")}")
-    modImplementation("fi.dy.masa.litematica:litematica-fabric-${sc.current.version}:${property("deps.litematica")}")
+    modImplementation("maven.modrinth:malilib:${property("deps.malilib")}")
+    modImplementation("maven.modrinth:litematica:${property("deps.litematica")}")
+    // malilib が同梱 (JiJ) している fabric-api モジュール等。remap する系列 (1.21.x) では loom が
+    // 依存 mod の fabric.mod.json から jars を外すため、同梱分が dev 環境で読まれない。masa maven の POM は
+    // これらを推移的依存に書いていたが Modrinth maven の POM には無いので、dev 実行用に明示する。
+    // remap しない系列 (26.1+) は同梱分がそのまま読まれるので不要。
+    findProperty("deps.dev_runtime")?.toString()?.split(',')?.map(String::trim)?.filter(String::isNotEmpty)
+        ?.forEach { modLocalRuntime(it) }
 
     // ユニットテスト。fabric-loader-junit が fabric 環境下で JUnit を起動し、
     // Minecraft クラス + registry bootstrap (SharedConstants/Bootstrap) をテストから使えるようにする。

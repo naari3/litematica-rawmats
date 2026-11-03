@@ -137,3 +137,44 @@
 - 26.2.x: litematica 0.28.8 / malilib 0.29.6。rawmats 0.4.2 ロード。例外は oshi (perf counter / OSProcess null) のみで、26.3 と同じく rawmats とは無関係。
 - これで「deps を上げた既存 3 系列の実機起動」の未検証項目は、起動 (タイトル画面) までは確認済み。ワールド内の GUI 操作は既存 3 系列では未確認。
 - 宣言 floor の版 (例: litematica 0.26.11) での起動は確認していない (maven から消えているため dev 環境では試せない)。
+
+## 2026-11-03 依存の取得先を Modrinth maven に移行
+
+背景: masa maven が古い版を消すため、固定した deps がそのうち 404 になる (上の項)。他 mod の事例を別セッションで調べた。
+仕組みで対処していたのは、Modrinth maven に寄せる方法 (MagicLib / MasaGadget / conflux-map) と、
+masa maven の最新版へ一括で上げるスクリプトを置く方法 (tweakermore) だった。前者を採用。
+
+観察:
+- Modrinth maven では `maven.modrinth:<slug>:<version_number>` が MC 系列ごとの jar にリダイレクトされる
+  (例: malilib:0.27.16 → malilib-fabric-1.21.11-0.27.16.jar、litematica:0.29.1 → litematica-fabric-26.3-0.29.1.jar)。
+  0.26 以降の版番号は系列をまたいで重複しない (調査セッションの確認)。
+- Modrinth には floor の版が全部ある (malilib 0.27.16 / 0.28.9 / 0.29.2 / 0.30.2、litematica 0.26.11 / 0.27.9 / 0.28.3 / 0.29.1)。
+  一方で litematica 0.26.10 (advisory より前の版) は 404。Modrinth でも脆弱版は消えている。
+- floor の litematica が要求する malilib: 0.26.11 → >=0.27.14、0.27.9 → >=0.28.8、0.28.3 → >=0.29.2、0.29.1 → >=0.30.2。
+  26.2 の malilib floor `>=0.29.0` は litematica 0.28.3 の要求 (>=0.29.2) より低く、実質的に意味が無かった。
+- Modrinth の POM には依存が書かれていない。masa maven の POM は fabric-api-base / fabric-networking-api-v1 /
+  fabric-resource-loader-v1 / conditional-mixin / fabric-loader を推移的依存に書いていた。
+  - 1.21.11 (remap する系列) では fabric-loader-junit のテストが「fabric-networking-api-v1 が無い」で起動しなかった。
+    loom の remap 後の malilib jar では、`META-INF/jars/` に同梱 jar は残っているが、fabric.mod.json から `jars` が消えている。
+    そのため同梱分が dev 環境で読まれない。
+  - 26.x (remap しない系列) は同梱分がそのまま読まれる (ロード一覧で malilib / litematica の下に `\--` 付きで出る)。
+  - fabric-loader-junit は同梱 jar を `versions/<v>/.fabric/processedMods/` に展開する → .gitignore に追加。
+- fabricloader は 0.19.5 → 0.19.3 になった。masa の POM が runtime に 0.19.5 を入れていたのが無くなり、deps.fabric_loader の値が使われるため。
+
+対応:
+- build.gradle.kts: masa maven と jitpack を外し、Modrinth maven を `maven.modrinth` グループ限定で追加。
+  FallenBreath maven は conditional-mixin 用に残す。
+- 1.21.11 だけ `deps.dev_runtime` で、malilib 0.27.16 の同梱 jar と同じ版の 4 つを modLocalRuntime に入れる (dev 実行時のみ)。
+- deps.* を宣言 floor と同じ版に戻した (2026-11-03 の前の項の「逸脱」を解消)。
+  26.2 は malilib floor を >=0.29.2 に上げ、deps.malilib も 0.29.2。README の表も直した。
+
+検証:
+- `gradlew build`: 4 系列とも jar 生成、テスト 6 件通過。
+- runClient (タイトル画面まで。ワールドには入っていない) で 4 系列とも rawmats 0.4.2 がロードされ、エラーなし。
+  conditional-mixin と fabric-api のモジュールもロードされている:
+  - 1.21.11: litematica 0.26.11 / malilib 0.27.16。fabric-api モジュールと conditional-mixin はトップレベルでロード (dev_runtime 由来)。
+  - 26.1.x: litematica 0.27.9 / malilib 0.28.9、26.2.x: 0.28.3 / 0.29.2、26.3.x: 0.29.1 / 0.30.2。いずれも同梱分としてロード。
+
+残る懸念 (仮説):
+- 今後また advisory が出ると、Modrinth でも floor 未満の版がまとめて消える可能性がある。floor を修正版に合わせて上げる運用なら影響は小さいと思われる。
+- CI の actions/cache は restore-keys で前方一致の復元をするので、キャッシュがある間は依存が消えても気づけない。
