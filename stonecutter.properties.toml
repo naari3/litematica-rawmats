@@ -6,28 +6,33 @@ mod.file_name = "rawmats-fabric"
 deps.fabric_loader = "0.19.3"
 loomx.loom_version = "1.17-SNAPSHOT"
 
-# 依存の floor はコンパイルに使ったバージョンに合わせる (それ未満での API 存在を検証していないため)。
+# 依存の floor (*_compat) は、その系列を追加したときにコンパイルに使ったバージョンに合わせる
+# (それ未満での API 存在を検証していないため)。
 # さらに litematica の floor はセキュリティ下限を兼ねる:
 # 2026-07 の RCE advisory (コマンド実行脆弱性) の修正版 = 1.21.11: 0.26.11 / 26.1.x: 0.27.9 / 26.2: 0.28.3。
 # これ未満に floor を下げないこと。
+#
+# deps.* (コンパイル用) は masa maven に実在する版にする。maven は系列ごとに最新の数版しか残さず、
+# 古い版は消える (2026-11-03 時点で旧 deps のうち malilib 0.28.9 以外は 404)。消えるとビルドが壊れるので、
+# そのとき残っている最新版に上げる。floor は据え置く (docs/notes/multi-version.md 2026-11-03 参照)。
 
 ["1.21.11"]
 mod.mc_compat = "1.21.11"
 mod.malilib_compat = ">=0.27.16"
 mod.litematica_compat = ">=0.26.11"
-deps.malilib = "0.27.16"
-deps.litematica = "0.26.11"
+deps.malilib = "0.27.20"
+deps.litematica = "0.26.16"
 
 ["26.1.x"]
 mod.mc_compat = "~26.1"
 mod.malilib_compat = ">=0.28.9 <0.29"
 mod.litematica_compat = ">=0.27.9"
-deps.malilib = "0.28.9"
-deps.litematica = "0.27.9"
+deps.malilib = "0.28.12"
+deps.litematica = "0.27.14"
 
 ["26.2.x"]
 mod.mc_compat = "~26.2"
 mod.malilib_compat = ">=0.29.0 <0.30"
 mod.litematica_compat = ">=0.28.3"
-deps.malilib = "0.29.3"
-deps.litematica = "0.28.3"
+deps.malilib = "0.29.6"
+deps.litematica = "0.28.8"
